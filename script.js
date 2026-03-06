@@ -3180,14 +3180,14 @@ function renderHomeContent() {
 
     options.forEach(option => {
         const card = document.createElement('div');
-        card.style.cssText = 'background: #2f3136; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; border: 1px solid #40444b; display: flex; flex-direction: column; align-items: flex-start; text-align: left; min-height: 120px;';
+        card.style.cssText = 'background: var(--surface-light); border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; border: 1px solid var(--border); display: flex; flex-direction: column; align-items: flex-start; text-align: left; min-height: 120px;';
 
         card.onmouseenter = () => {
             card.style.borderColor = 'var(--primary)';
             card.style.transform = 'translateY(-2px)';
         };
         card.onmouseleave = () => {
-            card.style.borderColor = '#40444b';
+            card.style.borderColor = 'var(--border)';
             card.style.transform = 'translateY(0)';
         };
         card.onclick = option.action;
@@ -3779,6 +3779,7 @@ function getDaySeparator(timestamp) {
 
     const separator = document.createElement('div');
     separator.className = 'day-separator';
+    separator.dataset.separatorDate = date.toDateString();
     separator.style.position = 'relative';
     separator.style.zIndex = '1';
     separator.style.margin = '8px 0';
@@ -3829,6 +3830,17 @@ async function renderMessages(scrollToBottom = true) {
         return;
     }
 
+    const existingMsgIds = new Set();
+    container.querySelectorAll('[data-msg-id]').forEach(el => {
+        existingMsgIds.add(el.dataset.msgId);
+    });
+
+    const existingDaySeparators = new Set();
+    container.querySelectorAll('[data-separator-date]').forEach(el => {
+        existingDaySeparators.add(el.dataset.separatorDate);
+    });
+
+    const isInitialRender = existingMsgIds.size === 0;
     const fragment = document.createDocumentFragment();
 
     lastUser = null;
@@ -3838,8 +3850,21 @@ async function renderMessages(scrollToBottom = true) {
     let lastDate = null;
 
     for (const msg of messages) {
+        if (existingMsgIds.has(msg.id)) {
+            lastUser = msg.user;
+            lastTime = msg.timestamp;
+            const msgDate = new Date(msg.timestamp * 1000).toDateString();
+            lastDate = msgDate;
+            if (msg.user === lastUser && msg.timestamp - lastTime < 300) {
+                consecutiveCount++;
+            } else {
+                consecutiveCount = 0;
+            }
+            continue;
+        }
+
         const msgDate = new Date(msg.timestamp * 1000).toDateString();
-        if (lastDate !== null && msgDate !== lastDate) {
+        if (lastDate !== null && msgDate !== lastDate && !existingDaySeparators.has(msgDate)) {
             fragment.appendChild(getDaySeparator(msg.timestamp));
             consecutiveCount = 0;
         }
@@ -3863,14 +3888,15 @@ async function renderMessages(scrollToBottom = true) {
         lastTime = msg.timestamp;
     }
 
-    container.innerHTML = "";
-    container.appendChild(fragment);
+    if (fragment.childNodes.length > 0) {
+        container.appendChild(fragment);
+    }
 
     const scrollBottom = () => { container.scrollTop = container.scrollHeight; };
     const nearBottom = () => (container.scrollHeight - (container.scrollTop + container.clientHeight)) < 80;
-    if (scrollToBottom) scrollBottom();
+    if (scrollToBottom || isInitialRender) scrollBottom();
 
-    if (scrollToBottom) {
+    if (scrollToBottom || isInitialRender) {
         let observer;
         try {
             observer = new MutationObserver(() => {
@@ -7138,8 +7164,14 @@ const themes = {
         '--surface-light': '#141419',
         '--surface-hover': '#1f1f26',
         '--border': '#2a2a33',
+        '--text': '#ededed',
+        '--text-dim': '#a0a0a0',
         '--primary': '#4e5058',
-        '--primary-hover': '#586068'
+        '--primary-hover': '#586068',
+        '--danger': '#ed4245',
+        '--success': '#3ba55c',
+        '--link': '#00a8fc',
+        '--mention': '#9b87f5'
     },
     midnight: {
         '--bg': '#0d1117',
@@ -7147,8 +7179,14 @@ const themes = {
         '--surface-light': '#21262d',
         '--surface-hover': '#30363d',
         '--border': '#30363d',
+        '--text': '#ededed',
+        '--text-dim': '#a0a0a0',
         '--primary': '#58a6ff',
-        '--primary-hover': '#79b8ff'
+        '--primary-hover': '#79b8ff',
+        '--danger': '#ed4245',
+        '--success': '#3ba55c',
+        '--link': '#58a6ff',
+        '--mention': '#58a6ff'
     },
     ocean: {
         '--bg': '#0a1628',
@@ -7156,8 +7194,14 @@ const themes = {
         '--surface-light': '#1a3a5c',
         '--surface-hover': '#2a5070',
         '--border': '#1a4a6c',
+        '--text': '#ededed',
+        '--text-dim': '#a0a0a0',
         '--primary': '#4a9eff',
-        '--primary-hover': '#60aaff'
+        '--primary-hover': '#60aaff',
+        '--danger': '#ed4245',
+        '--success': '#3ba55c',
+        '--link': '#4a9eff',
+        '--mention': '#4a9eff'
     },
     forest: {
         '--bg': '#0a1a10',
@@ -7165,8 +7209,14 @@ const themes = {
         '--surface-light': '#1a4028',
         '--surface-hover': '#2a5538',
         '--border': '#1a4528',
+        '--text': '#ededed',
+        '--text-dim': '#a0a0a0',
         '--primary': '#4ade80',
-        '--primary-hover': '#5ce68a'
+        '--primary-hover': '#5ce68a',
+        '--danger': '#ed4245',
+        '--success': '#3ba55c',
+        '--link': '#4ade80',
+        '--mention': '#4ade80'
     },
     sunset: {
         '--bg': '#1a0a14',
@@ -7174,8 +7224,14 @@ const themes = {
         '--surface-light': '#401830',
         '--surface-hover': '#5a2840',
         '--border': '#402030',
+        '--text': '#ededed',
+        '--text-dim': '#a0a0a0',
         '--primary': '#fb7185',
-        '--primary-hover': '#fc8a9a'
+        '--primary-hover': '#fc8a9a',
+        '--danger': '#ed4245',
+        '--success': '#3ba55c',
+        '--link': '#fb7185',
+        '--mention': '#fb7185'
     },
     purple: {
         '--bg': '#1a0a28',
@@ -7183,8 +7239,14 @@ const themes = {
         '--surface-light': '#401860',
         '--surface-hover': '#5a2878',
         '--border': '#402055',
+        '--text': '#ededed',
+        '--text-dim': '#a0a0a0',
         '--primary': '#c084fc',
-        '--primary-hover': '#d8a6fd'
+        '--primary-hover': '#d8a6fd',
+        '--danger': '#ed4245',
+        '--success': '#3ba55c',
+        '--link': '#c084fc',
+        '--mention': '#c084fc'
     },
     rose: {
         '--bg': '#1a0a1a',
@@ -7192,8 +7254,14 @@ const themes = {
         '--surface-light': '#402030',
         '--surface-hover': '#502840',
         '--border': '#402830',
+        '--text': '#ededed',
+        '--text-dim': '#a0a0a0',
         '--primary': '#fb6b8b',
-        '--primary-hover': '#fc8aa5'
+        '--primary-hover': '#fc8aa5',
+        '--danger': '#ed4245',
+        '--success': '#3ba55c',
+        '--link': '#fb6b8b',
+        '--mention': '#fb6b8b'
     },
     amber: {
         '--bg': '#1a140a',
@@ -7201,8 +7269,14 @@ const themes = {
         '--surface-light': '#402818',
         '--surface-hover': '#503820',
         '--border': '#402818',
+        '--text': '#ededed',
+        '--text-dim': '#a0a0a0',
         '--primary': '#fb923c',
-        '--primary-hover': '#fca560'
+        '--primary-hover': '#fca560',
+        '--danger': '#ed4245',
+        '--success': '#3ba55c',
+        '--link': '#fb923c',
+        '--mention': '#fb923c'
     },
     cyan: {
         '--bg': '#0a141a',
@@ -7210,8 +7284,14 @@ const themes = {
         '--surface-light': '#183040',
         '--surface-hover': '#284050',
         '--border': '#183040',
+        '--text': '#ededed',
+        '--text-dim': '#a0a0a0',
         '--primary': '#22d3ee',
-        '--primary-hover': '#4ae4f7'
+        '--primary-hover': '#4ae4f7',
+        '--danger': '#ed4245',
+        '--success': '#3ba55c',
+        '--link': '#22d3ee',
+        '--mention': '#22d3ee'
     },
     emerald: {
         '--bg': '#0a1a14',
@@ -7219,8 +7299,14 @@ const themes = {
         '--surface-light': '#183828',
         '--surface-hover': '#284838',
         '--border': '#183828',
+        '--text': '#ededed',
+        '--text-dim': '#a0a0a0',
         '--primary': '#10b981',
-        '--primary-hover': '#34d399'
+        '--primary-hover': '#34d399',
+        '--danger': '#ed4245',
+        '--success': '#3ba55c',
+        '--link': '#10b981',
+        '--mention': '#10b981'
     }
 };
 

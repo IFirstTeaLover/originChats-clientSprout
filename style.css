@@ -17,6 +17,8 @@
     --primary-hover: #586068;
     --danger: #ed4245;
     --success: #3ba55c;
+    --link: #00a8fc;
+    --mention: #9b87f5;
     --shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
     --font-main: 'gg sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     --message-font-size: 15px;
@@ -417,7 +419,7 @@ p {
 #members-list {
     padding: 12px 16px;
     overflow-y: auto;
-    color: #ccc;
+    color: var(--text, #ededed);
     font-size: 15px;
     min-width: 300px;
 }
@@ -431,7 +433,7 @@ p {
 #members-list h2 {
     font-size: 12px;
     font-weight: 600;
-    color: #888;
+    color: var(--text-dim, #a0a0a0);
     margin-bottom: 8px;
     text-transform: uppercase;
 }
@@ -723,7 +725,7 @@ p {
     white-space: pre-wrap;
     margin-left: 0;
     padding: 2px 0;
-    color: #e0e0e0;
+    color: var(--text, #ededed);
     max-width: 100%;
 }
 
@@ -780,7 +782,7 @@ p {
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    color: #fff;
+    color: var(--text-dim, #a0a0a0);
 }
 
 .emoji-only {
@@ -793,7 +795,7 @@ p {
 }
 
 .message-text a {
-    color: #00a8fc;
+    color: var(--link, #00a8fc);
     text-decoration: none;
 }
 
@@ -802,8 +804,8 @@ p {
 }
 
 blockquote {
-    border-left-color: #00a8fc !important;
-    background: rgba(0, 168, 252, 0.05) !important;
+    border-left-color: var(--link, #00a8fc) !important;
+    background: color-mix(in srgb, var(--link, #00a8fc) 5%, transparent) !important;
 }
 
 @media (max-width: 768px) {
@@ -1557,7 +1559,7 @@ a {
     top: 0;
     left: 0;
     right: 0;
-    background: linear-gradient(135deg, #ed4245 0%, #c03537 100%);
+    background: linear-gradient(135deg, var(--danger, #ed4245) 0%, #c03537 100%);
     color: #fff;
     padding: 12px 16px;
     display: flex;
@@ -1707,7 +1709,7 @@ a {
 }
 
 .timestamp {
-    color: #888;
+    color: var(--text-dim, #a0a0a0);
     font-size: 13px;
     cursor: default;
     font-weight: 400;
@@ -1715,7 +1717,7 @@ a {
 }
 
 .message-group:hover .timestamp {
-    color: #999;
+    color: var(--text, #ededed);
 }
 
 .timestamp:hover {
@@ -1727,7 +1729,7 @@ a {
     bottom: 100%;
     left: 50%;
     transform: translateX(-50%);
-    background: #111;
+    background: var(--surface, #0a0a0c);
     color: #fff;
     padding: 6px 10px;
     border-radius: 4px;
@@ -1807,7 +1809,7 @@ a {
     grid-template-columns: 1fr 240px;
     /* main chat + sidebar */
     height: 100%;
-    background: #111;
+    background: var(--bg, #050505);
 }
 
 #messages-container {
@@ -1924,7 +1926,7 @@ a {
 }
 
 .ping-badge {
-    background: #ff4444;
+    background: var(--danger, #ed4245);
     color: white;
     border-radius: 10px;
     padding: 2px 6px;
@@ -1944,7 +1946,7 @@ a {
 
 .message-text.mentioned {
     background: rgba(255, 200, 0, 0.1);
-    border-left: 3px solid #ffc800;
+    border-left: 3px solid var(--mention, #9b87f5);
     padding-left: 8px;
     margin-left: -8px;
 }
@@ -1994,7 +1996,7 @@ a {
 .message-reply svg {
     width: 16px;
     height: 16px;
-    color: #72767d;
+    color: var(--text-dim, #a0a0a0);
     flex-shrink: 0;
 }
 
@@ -2011,7 +2013,7 @@ a {
 
 .message-reply .reply-text {
     font-size: 12px;
-    color: #b9bbbe;
+    color: var(--text-dim, #a0a0a0);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2022,14 +2024,14 @@ a {
 }
 
 .message-reply .reply-username {
-    color: #b9bbbe;
+    color: var(--text-dim, #a0a0a0);
     font-weight: 600;
     font-size: 12px;
     margin-right: 8px;
 }
 
 .message-reply .reply-content {
-    color: #dcddde;
+    color: var(--text, #ededed);
     font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2125,8 +2127,8 @@ a {
 }
 
 .mention {
-    color: #9b87f5;
-    background: rgba(155, 135, 245, 0.1);
+    color: var(--mention, #9b87f5);
+    background: color-mix(in srgb, var(--mention, #9b87f5) 10%, transparent);
     padding: 2px 6px;
     border-radius: 6px;
     font-weight: 600;
@@ -2134,7 +2136,7 @@ a {
 }
 
 .mention:hover {
-    background: rgba(155, 135, 245, 0.2);
+    background: color-mix(in srgb, var(--mention, #9b87f5) 20%, transparent);
 }
 
 .embed-container {
@@ -2226,7 +2228,7 @@ a {
 }
 
 .video-embed {
-    background: #000;
+    background: var(--bg, #050505);
 }
 
 .video-player {
@@ -2414,19 +2416,19 @@ a {
 
 /* Override for organizations */
 .github-org-embed .github-type {
-    background: linear-gradient(135deg, #0366d6 0%, #0884da 100%);
+    background: linear-gradient(135deg, var(--link, #00a8fc) 0%, #0884da 100%);
     box-shadow: 0 2px 4px rgba(3, 102, 214, 0.3);
 }
 
 .github-org-embed .github-stat .stat-value {
-    color: #0366d6;
+    color: var(--link, #00a8fc);
 }
 
 .github-website {
     display: flex;
     align-items: center;
     gap: 6px;
-    color: #0366d6;
+    color: var(--link, #00a8fc);
     font-size: 14px;
     text-decoration: none;
     transition: all 0.2s ease;
@@ -2435,7 +2437,7 @@ a {
 
 .github-website:hover {
     text-decoration: underline;
-    color: #0884da;
+    color: var(--link-hover, #00c8fc);
 }
 
 .github-website svg {
@@ -2522,7 +2524,7 @@ a {
     height: 24px;
     min-width: 24px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--primary, #4e5058) 0%, var(--primary-hover, #586068) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3025,7 +3027,7 @@ a {
     align-items: center;
     gap: 4px;
     padding: 4px;
-    background: #1e1f22;
+    background: var(--surface, #0a0a0c);
     border-radius: 12px;
     opacity: 0;
     transition: opacity 0.15s ease;
@@ -3621,7 +3623,7 @@ pre {
     display: flex;
     gap: 4px;
     padding: 4px;
-    background: #1e1f22;
+    background: var(--surface, #0a0a0c);
     border-radius: 12px;
 }
 
@@ -3824,7 +3826,7 @@ pre {
     position: absolute;
     bottom: -2px;
     right: -2px;
-    background: #ed4245;
+    background: var(--danger, #ed4245);
     border-radius: 50%;
     width: 16px;
     height: 16px;
@@ -3891,8 +3893,8 @@ pre {
 }
 
 .home-guild.server-error .guild-icon {
-    background: #1a0a0a;
-    border: 2px solid #ed4245;
+    background: var(--surface, #0a0a0c);
+    border: 2px solid var(--danger, #ed4245);
 }
 
 .home-guild.server-error .guild-warning {
@@ -3926,9 +3928,7 @@ pre {
 
 .user-profile-icon {
     background: var(--surface);
-    border-radius: var(--avatar-radius, 50%);
     overflow: hidden;
-    border: 2px solid var(--border);
     transition: border-radius 0.2s ease;
 }
 
@@ -3944,8 +3944,8 @@ pre {
     left: calc(100% + 12px);
     top: 50%;
     transform: translateY(-50%);
-    background: #111;
-    color: #fff;
+    background: var(--surface, #0a0a0c);
+    color: var(--text, #ededed);
     padding: 8px 12px;
     border-radius: 6px;
     font-size: 14px;
@@ -3962,8 +3962,8 @@ pre {
 }
 
 .guild-item.error .guild-icon {
-    background: #1a0a0a;
-    border: 2px solid #ed4245;
+    background: var(--surface, #0a0a0c);
+    border: 2px solid var(--danger, #ed4245);
 }
 
 .guild-item.error .guild-warning {
@@ -4013,7 +4013,7 @@ pre {
 
 .discovery-container {
     position: relative;
-    background: #111;
+    background: var(--surface, #0a0a0c);
     border-radius: 12px;
     max-width: 800px;
     width: 90%;
@@ -4333,7 +4333,7 @@ pre {
 
 .channel-item.active {
     background: var(--surface-hover);
-    color: #fff;
+    color: var(--text, #ededed);
 }
 
 .channel-item.active::before {
@@ -4720,9 +4720,9 @@ body {
     gap: 10px;
     padding: 14px 32px;
     background: transparent;
-    border: 1px solid #ed4245;
+    border: 1px solid var(--danger, #ed4245);
     border-radius: 8px;
-    color: #ed4245;
+    color: var(--danger, #ed4245);
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;
@@ -4734,7 +4734,7 @@ body {
 }
 
 .account-logout-button:hover {
-    background: #ed4245;
+    background: var(--danger, #ed4245);
     color: white;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(237, 66, 69, 0.3);
@@ -4746,7 +4746,7 @@ body {
 }
 
 .account-logout-button:focus {
-    outline: 2px solid #ed4245;
+    outline: 2px solid var(--danger, #ed4245);
     outline-offset: 2px;
 }
 
@@ -4763,9 +4763,9 @@ body {
     gap: 10px;
     padding: 14px 32px;
     background: transparent;
-    border: 1px solid #ed4245;
+    border: 1px solid var(--danger, #ed4245);
     border-radius: 8px;
-    color: #ed4245;
+    color: var(--danger, #ed4245);
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;
@@ -4947,7 +4947,7 @@ body {
 
     /* Mobile Members List Improvements */
     #members-list {
-        background: #1a1a1a;
+        background: var(--surface, #0a0a0c);
         padding: 0;
         width: 100%;
         max-width: 100%;
@@ -5019,7 +5019,7 @@ body {
         height: 12px;
         bottom: 8px;
         right: 8px;
-        border: 2px solid #1a1a1a;
+        border: 2px solid var(--surface, #0a0a0c);
     }
 
     /* Mobile Message Styling Improvements */
@@ -5062,7 +5062,7 @@ body {
         word-wrap: break-word;
         word-break: break-word;
         white-space: pre-wrap;
-        color: #e0e0e0;
+        color: var(--text, #ededed);
         max-width: 100%;
         overflow: visible;
     }
@@ -5138,7 +5138,7 @@ body {
 
     .message-reply .reply-text {
         font-size: 12px;
-        color: #b9bbbe;
+        color: var(--text-dim, #a0a0a0);
     }
 
     .message-reply .reply-username {
@@ -5277,7 +5277,7 @@ body {
     position: absolute;
     bottom: calc(100% + 10px);
     left: 12px;
-    background: #121214;
+    background: var(--surface, #0a0a0c);
     /* border: 1px solid var(--border); */
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
@@ -5340,7 +5340,7 @@ body {
 }
 
 .mention-item.selected .mention-name {
-    color: #fff;
+    color: var(--text, #ededed);
 }
 
 .mention-item img {
@@ -5365,7 +5365,7 @@ body {
 .mention-name {
     font-weight: 600;
     font-size: 14px;
-    color: #fff;
+    color: var(--text, #ededed);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -5373,7 +5373,7 @@ body {
 
 .mention-status {
     font-size: 12px;
-    color: #666;
+    color: var(--text-dim, #a0a0a0);
 }
 
 .mention-item.selected .mention-status {
@@ -5388,7 +5388,7 @@ body {
     width: 12px;
     height: 12px;
     background: #43b581;
-    border: 2px solid #121214;
+    border: 2px solid var(--surface, #0a0a0c);
     border-radius: 50%;
     box-shadow: 0 0 4px rgba(67, 181, 129, 0.4);
 }
@@ -5401,7 +5401,7 @@ body {
     width: 12px;
     height: 12px;
     background: #555;
-    border: 2px solid #121214;
+    border: 2px solid var(--surface, #0a0a0c);
     border-radius: 50%;
 }
 
@@ -5413,7 +5413,7 @@ body {
     width: 12px;
     height: 12px;
     background: #faa61a;
-    border: 2px solid #121214;
+    border: 2px solid var(--surface, #0a0a0c);
     border-radius: 50%;
 }
 
@@ -5455,7 +5455,7 @@ body {
     position: absolute;
     bottom: calc(100% + 10px);
     left: 12px;
-    background: #121214;
+    background: var(--surface, #0a0a0c);
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     max-height: 300px;
@@ -5921,7 +5921,7 @@ body {
 }
 
 .dm-create-panel .btn-primary:hover {
-    background: var(--primary-hover, #7c6ae6);
+    background: var(--primary-hover, #586068);
 }
 
 /* Channel Add Button */
@@ -6208,13 +6208,13 @@ body {
     gap: 8px;
     font-size: 14px;
     font-weight: 600;
-    color: var(--text, #ffffff);
+    color: var(--text, #ededed);
 }
 
 .voice-channel-title i {
     width: 18px;
     height: 18px;
-    color: #43b581;
+    color: var(--success, #3ba55c);
 }
 
 /* Voice Controls */
@@ -6235,7 +6235,7 @@ body {
     background-color: rgba(255, 255, 255, 0.1);
     border: none;
     border-radius: 6px;
-    color: var(--text, #ffffff);
+    color: var(--text, #ededed);
     cursor: pointer;
     transition: all 0.2s ease;
 }
@@ -6246,11 +6246,11 @@ body {
 }
 
 .voice-control-btn.active {
-    background-color: #43b581;
+    background-color: var(--success, #3ba55c);
 }
 
 .voice-control-btn.muted {
-    background-color: #f04747;
+    background-color: var(--danger, #ed4245);
 }
 
 .voice-control-btn i {

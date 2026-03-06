@@ -6,7 +6,8 @@
     --header-secondary: var(--text-dim, #a0a0a0);
     --text-muted: var(--text-dim, #a0a0a0);
     --text-normal: var(--text, #ededed);
-    --text-link: var(--primary-hover, #586068);
+    --text-link: var(--link, #00a8fc);
+    --text-mention: var(--mention, #9b87f5);
     --interactive-normal: var(--text-dim, #a0a0a0);
     --interactive-hover: var(--text, #ededed);
     --interactive-active: #fff;
