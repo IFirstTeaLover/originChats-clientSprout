@@ -35,6 +35,11 @@ async function detectEmbedType(url) {
     const ytMatch = url.match(YOUTUBE_REGEX);
     if (ytMatch) return { type: 'youtube', videoId: ytMatch[1] };
 
+    const commitMatch = url.match(/github\.com\/([^/]+)\/([^/]+)\/commit\/([a-f0-9]{7,40})/i);
+    if (commitMatch) {
+        return { type: 'github_commit', owner: commitMatch[1], repo: commitMatch[2], sha: commitMatch[3], url };
+    }
+
     if (/tenor\.com\/view\/[\w-]+-\d+(?:\?.*)?$/i.test(url)) {
         const id = url.match(/tenor\.com\/view\/[\w-]+-(\d+)/i)?.[1];
         return { type: 'tenor', id, url };
@@ -72,6 +77,7 @@ async function createEmbed(url) {
         case 'youtube': return createYouTubeEmbed(embedInfo.videoId, url);
         case 'tenor': return await createTenorEmbed(embedInfo.id, url);
         case 'github': return await createGitHubEmbed(embedInfo.path, url);
+        case 'github_commit': return await createGitHubCommitEmbed(embedInfo.owner, embedInfo.repo, embedInfo.sha, url);
         case 'video':
         case 'image': return null;
         default:
@@ -225,6 +231,83 @@ function createImageEmbed(url) {
 
     container.appendChild(wrapper);
     return container;
+}
+
+async function createGitHubCommitEmbed(owner, repo, sha, originalUrl) {
+    try {
+        const res = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/commits/${sha}`
+        );
+        if (!res.ok) throw new Error("GitHub API failed");
+
+        const data = await res.json();
+
+        const container = document.createElement("div");
+        container.className = "embed-container github-commit-embed";
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "github-embed-wrapper";
+
+        const avatar = document.createElement("img");
+        avatar.src = data.author?.avatar_url || data.committer?.avatar_url;
+        avatar.className = "github-avatar";
+        avatar.loading = "lazy";
+
+        wrapper.appendChild(avatar);
+
+        const content = document.createElement("div");
+        content.className = "github-content";
+
+        const header = _createGitHubHeader(
+            originalUrl,
+            `${owner}/${repo}@${sha.slice(0,7)}`,
+            "Commit"
+        );
+        content.appendChild(header);
+
+        const message = document.createElement("div");
+        message.className = "github-bio";
+        message.textContent = data.commit.message.split("\n")[0];
+        content.appendChild(message);
+
+        const stats = document.createElement("div");
+        stats.className = "github-stats";
+        stats.appendChild(_createGitHubStat("Files", data.files?.length || 0));
+        stats.appendChild(_createGitHubStat("Additions", data.stats?.additions || 0));
+        stats.appendChild(_createGitHubStat("Deletions", data.stats?.deletions || 0));
+        content.appendChild(stats);
+
+        const meta = document.createElement("div");
+        meta.className = "github-meta";
+
+        meta.appendChild(
+            _createGitHubMetaItem(
+                "git-commit",
+                data.commit.author.name
+            )
+        );
+
+        meta.appendChild(
+            _createGitHubMetaItem(
+                "clock",
+                formatDate(new Date(data.commit.author.date))
+            )
+        );
+
+        content.appendChild(meta);
+
+        wrapper.appendChild(content);
+        container.appendChild(wrapper);
+
+        if (window.lucide)
+            setTimeout(() => window.lucide.createIcons({ root: container }), 0);
+
+        return container;
+
+    } catch (err) {
+        console.debug("GitHub commit embed failed:", err);
+        return null;
+    }
 }
 
 // ─── Favourites button ───────────────────────────────────────────────────────
