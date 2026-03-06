@@ -5050,7 +5050,7 @@ body {
     .message-group .avatar {
         width: 44px;
         height: 44px;
-        margin-right: 12px;
+        margin-left: 5px;
     }
 
     .message-group-content {
