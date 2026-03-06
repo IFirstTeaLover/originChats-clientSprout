@@ -2097,6 +2097,7 @@ function updateTypingIndicator() {
     if (users.length === 0) { typingEl.textContent = ""; typingEl.style.visibility = 'hidden'; return; }
     let text = users.length === 1 ? `${users[0]} is typing...` : users.length === 2 ? `${users[0]} and ${users[1]} are typing...` : `${users.length} people are typing...`;
     typingEl.textContent = text;
+    typingEl.style.display = '';
     typingEl.style.visibility = 'visible';
 }
 
@@ -2443,31 +2444,16 @@ function updateTabsActive() {
 function formatTimestamp(unix) {
     const now = new Date();
     const messageDate = new Date(unix * 1000);
-    const diffMs = now - messageDate;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24 && diffDays < 1) return `${diffHours}h ago`;
-
     const isToday = messageDate.toDateString() === now.toDateString();
-    if (isToday) return `Today at ${messageDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
 
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (messageDate.toDateString() === yesterday.toDateString()) return `Yesterday at ${messageDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    const timeStr = messageDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
-    if (diffDays < 7) {
-        const dayName = messageDate.toLocaleDateString('en-US', { weekday: 'long' });
-        return `${dayName} at ${messageDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
-    }
+    if (isToday) return timeStr;
 
     const day = messageDate.getDate();
     const suffix = day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th';
     const month = messageDate.toLocaleString('en-US', { month: 'short' });
-    return `${month} ${day}${suffix}, ${messageDate.getFullYear()} ${messageDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    return `${month} ${day}${suffix}, ${messageDate.getFullYear()} at ${timeStr}`;
 }
 
 function getFullTimestamp(unix) {
