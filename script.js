@@ -3841,6 +3841,13 @@ async function renderMessages(scrollToBottom = true) {
     });
 
     const isInitialRender = existingMsgIds.size === 0;
+    
+    if (isInitialRender) {
+        container.innerHTML = '';
+    } else {
+        const throbber = container.querySelector('.loading-throbber');
+        if (throbber) throbber.remove();
+    }
     const fragment = document.createDocumentFragment();
 
     lastUser = null;

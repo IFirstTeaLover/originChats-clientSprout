@@ -121,13 +121,17 @@ function createUnifiedPicker() {
 
     document.addEventListener('click', (e) => {
         if (picker && picker.classList.contains('active')) {
-            const isOverlay = e.target.classList.contains('reaction-picker-overlay') || e.target.closest('.reaction-picker-overlay');
-            const isPicker = e.target.closest('.reaction-picker');
+            const pickerRect = picker.getBoundingClientRect();
+            const isInPicker = (
+                e.clientX >= pickerRect.left &&
+                e.clientX <= pickerRect.right &&
+                e.clientY >= pickerRect.top &&
+                e.clientY <= pickerRect.bottom
+            );
             const isEmojiBtn = e.target.closest('#emoji-btn');
             const isReactionBtn = e.target.closest('[data-emoji-anchor]');
-            const isEmojiClick = e.target.closest('.reaction-picker-emoji');
             
-            if (!isOverlay && !isPicker && !isEmojiBtn && !isReactionBtn && !isEmojiClick) {
+            if (!isInPicker && !isEmojiBtn && !isReactionBtn) {
                 closeUnifiedPicker();
             }
         }
