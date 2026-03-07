@@ -25,3 +25,14 @@ function blobToDataURL(blob) {
         reader.readAsDataURL(blob);
     });
 }
+
+const TRUSTED_DOMAINS = ['avatars.rotur.dev', 'photos.rotur.dev', 'img.youtube.com', 'media.tenor.com', 'media.discordapp.net', 'cdn.discordapp.com'];
+
+function proxyImageUrl(url) {
+    if (!url || url.startsWith('data:') || url.startsWith('blob:')) return url;
+    try {
+        const urlObj = new URL(url);
+        if (TRUSTED_DOMAINS.includes(urlObj.hostname)) return url;
+    } catch (_) {}
+    return `https://wsrv.nl/?url=${encodeURIComponent(url)}`;
+}

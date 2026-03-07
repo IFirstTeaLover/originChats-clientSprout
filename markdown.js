@@ -70,7 +70,7 @@ function parseMarkdown(text, embedLinks) {
         }
 
         if (hasExtension(url, IMAGE_EXTENSIONS)) {
-            return `<a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="image" class="message-image" data-image-url="${url}"></a>`;
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${proxyImageUrl(url)}" alt="image" class="message-image" data-image-url="${url}"></a>`;
         }
 
         return `<a href="${url}" class="potential-image" target="_blank" rel="noopener noreferrer" data-image-url="${url}">${url}</a>`;

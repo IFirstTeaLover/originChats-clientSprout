@@ -96,7 +96,7 @@ function createYouTubeEmbed(videoId, originalUrl) {
 
     const thumbnail = document.createElement('div');
     thumbnail.className = 'youtube-thumbnail';
-    thumbnail.style.backgroundImage = `url(https://img.youtube.com/vi/${videoId}/maxresdefault.jpg)`;
+    thumbnail.style.backgroundImage = `url(${proxyImageUrl(`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`)})`;
 
     const playButton = document.createElement('div');
     playButton.className = 'embed-play-button';
@@ -150,7 +150,7 @@ async function createTenorEmbed(tenorId, originalUrl) {
         link.onclick = (e) => { e.preventDefault(); if (window.openImageModal) window.openImageModal(gifUrl); };
 
         const img = document.createElement('img');
-        img.src = gifUrl;
+        img.src = proxyImageUrl(gifUrl);
         img.alt = data[0].content_description || 'Tenor GIF';
         img.className = 'tenor-gif';
         img.loading = 'lazy';
@@ -208,7 +208,7 @@ function createImageEmbed(url) {
     link.onclick = (e) => { e.preventDefault(); if (window.openImageModal) window.openImageModal(url); };
 
     const img = document.createElement('img');
-    img.src = url;
+    img.src = proxyImageUrl(url);
     img.alt = 'Embedded image';
     img.className = 'message-image';
     img.loading = 'lazy';
@@ -249,7 +249,7 @@ async function createGitHubCommitEmbed(owner, repo, sha, originalUrl) {
         wrapper.className = "github-embed-wrapper";
 
         const avatar = document.createElement("img");
-        avatar.src = data.author?.avatar_url || data.committer?.avatar_url;
+        avatar.src = proxyImageUrl(data.author?.avatar_url || data.committer?.avatar_url);
         avatar.className = "github-avatar";
         avatar.loading = "lazy";
 
@@ -370,7 +370,7 @@ async function isImageUrl(url, timeout = 5000) {
         img.onload = () => { clearTimeout(timer); resolve(true); };
         img.onerror = () => { clearTimeout(timer); resolve(false); };
         img.referrerPolicy = 'no-referrer';
-        img.src = url;
+        img.src = proxyImageUrl(url);
     });
 }
 
@@ -408,7 +408,7 @@ function _processPotentialImageLink(link, groupContent) {
         wrapper.className = 'chat-image-wrapper';
 
         const img = document.createElement('img');
-        img.src = url;
+        img.src = proxyImageUrl(url);
         img.alt = 'image';
         img.className = 'message-image';
 
@@ -522,7 +522,7 @@ async function createGitHubEmbed(usernameOrPath, originalUrl) {
         wrapper.className = 'github-embed-wrapper';
 
         const avatar = document.createElement('img');
-        avatar.src = data.avatar_url; avatar.alt = `${usernameOrPath} avatar`;
+        avatar.src = proxyImageUrl(data.avatar_url); avatar.alt = `${usernameOrPath} avatar`;
         avatar.className = 'github-avatar'; avatar.loading = 'lazy';
         wrapper.appendChild(avatar);
 
@@ -606,7 +606,7 @@ async function createGitHubRepoEmbed(owner, repo, originalUrl) {
         wrapper.className = 'github-embed-wrapper';
 
         const avatar = document.createElement('img');
-        avatar.src = data.owner.avatar_url; avatar.alt = `${owner} avatar`;
+        avatar.src = proxyImageUrl(data.owner.avatar_url); avatar.alt = `${owner} avatar`;
         avatar.className = 'github-avatar'; avatar.loading = 'lazy';
         wrapper.appendChild(avatar);
 

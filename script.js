@@ -850,12 +850,6 @@ function _renderDMTabIntoContainer(container, tab, legacyTitle = false) {
         blocked: _buildBlockedList
     };
 
-    if (tab === 'notes') {
-        _renderNotesTab(container);
-        if (window.lucide) window.lucide.createIcons({ root: container });
-        return;
-    }
-
     if (legacyTitle && titles[tab]) {
         const tabTitle = document.createElement('div');
         tabTitle.className = 'dm-section-title';
@@ -879,42 +873,6 @@ function _renderDMTabIntoContainer(container, tab, legacyTitle = false) {
     }
 
     if (window.lucide) window.lucide.createIcons({ root: container });
-}
-
-function _renderNotesTab(container) {
-    const notesList = document.createElement('div');
-    notesList.style.cssText = 'flex: 1; overflow-y: auto; padding: 8px 20px;';
-    container.appendChild(notesList);
-
-    const inputWrapper = document.createElement('div');
-    inputWrapper.style.cssText = 'display: flex; padding: 8px 20px; border-top: 1px solid var(--border);';
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.placeholder = 'Write a note...';
-    input.style.cssText = 'flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text);';
-    const addBtn = document.createElement('button');
-    addBtn.textContent = 'Add';
-    addBtn.style.cssText = 'margin-left: 8px; padding: 6px 12px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;';
-    addBtn.onclick = async () => {
-        const txt = input.value.trim();
-        if (!txt) return;
-        if (window.notesChannel) await window.notesChannel.saveMessage(txt, state.currentUser?.username ?? 'you');
-        renderDMTabContent('notes');
-    };
-    inputWrapper.appendChild(input);
-    inputWrapper.appendChild(addBtn);
-    container.appendChild(inputWrapper);
-
-    if (window.notesChannel) {
-        window.notesChannel.getAllMessages().then(notes => {
-            notes.forEach(note => {
-                const noteEl = document.createElement('div');
-                noteEl.style.cssText = 'background: var(--surface-light); padding: 8px 12px; margin-bottom: 6px; border-radius: 6px; color: var(--text);';
-                noteEl.textContent = note.content;
-                notesList.appendChild(noteEl);
-            });
-        }).catch(e => console.error('Failed to load notes from IndexedDB', e));
-    }
 }
 
 // Public-facing renderDMTabContent used by switchDMTab and external callers
@@ -963,7 +921,7 @@ async function unblockUser(username) {
 function renderAccountProfile(data) {
     const content = document.getElementById('account-content');
     const joinedDate = new Date(data.created).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const bannerHtml = data.banner ? `<img src="${data.banner}" alt="Banner">` : '';
+    const bannerHtml = data.banner ? `<img src="${proxyImageUrl(data.banner)}" alt="Banner">` : '';
     const statusFromClass = getUserStatusInServer(data.username);
     const isCurrentUser = state.currentUser && state.currentUser.username === data.username;
     const isDM = state.serverUrl === 'dms.mistium.com';
@@ -978,7 +936,7 @@ function renderAccountProfile(data) {
         <div class="account-banner">${bannerHtml}</div>
         <div class="account-avatar-section">
             <div class="account-avatar">
-                <img src="${data.pfp}" alt="${data.username}">
+                <img src="${proxyImageUrl(data.pfp)}" alt="${data.username}">
                 <div class="account-status-indicator ${statusFromClass}"></div>
             </div>
         </div>
@@ -2263,7 +2221,10 @@ async function selectChannel(channel) {
         const typingEl = document.getElementById('typing');
         const serverChannelHeader = document.getElementById('server-channel-header');
 
-        if (messagesEl) messagesEl.style.display = 'block';
+        if (messagesEl) {
+            messagesEl.style.display = 'block';
+            messagesEl.innerHTML = '';
+        }
         if (dmFriendsContainer) dmFriendsContainer.style.display = 'none';
         if (inputArea) inputArea.style.display = 'flex';
         if (membersList) membersList.style.display = 'none';
@@ -3257,8 +3218,24 @@ function renderMembers(channel) {
         return;
     }
 
+    container.innerHTML = '';
     container.style.display = '';
     if (serverChannelHeader && !isDM) serverChannelHeader.style.display = '';
+
+    // Reset MembersContent state when rendering members
+    if (window.MembersContent) window.MembersContent.reset();
+
+    // NEW: Check if this is a 1-on-1 DM (exactly 2 users)
+    if (isDM && !isExcludedChannel) {
+        const filteredUsers = Object.values(state.users).filter(u => checkPermission(u.roles, viewPermissions));
+        if (filteredUsers.length === 2) {
+            const otherUser = filteredUsers.find(u => u.username !== state.currentUser?.username);
+            if (otherUser && window.MembersContent) {
+                window.MembersContent.render({ type: 'profile', username: otherUser.username });
+                return;
+            }
+        }
+    }
 
     let headerSec = container.querySelector('.members-header');
     if (!headerSec) {
@@ -3577,7 +3554,7 @@ function renderMentionPopup() {
 }
 
 function getAvatarSrc(username) {
-    return state._avatarCache[username] || `https://avatars.rotur.dev/${username}`;
+    return state._avatarCache[username] || proxyImageUrl(`https://avatars.rotur.dev/${username}`);
 }
 
 function handleMentionNavigation(e) {

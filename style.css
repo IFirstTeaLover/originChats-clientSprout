@@ -418,11 +418,11 @@ p {
 }
 
 #members-list {
-    padding: 12px 16px;
     overflow-y: auto;
     color: var(--text, #ededed);
     font-size: 15px;
-    min-width: 300px;
+    width: 300px;
+    max-width: 300px;
 }
 
 @media (max-width: 768px) {
@@ -4876,6 +4876,117 @@ body {
             transform: translateY(0)
         }
     }
+
+/* Account Profile in Members List Sidebar */
+.account-profile-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Override account modal styles for sidebar context */
+#members-list .account-banner {
+    height: 60px;
+    border-radius: 8px;
+}
+
+#members-list .account-avatar-section {
+    margin-top: -30px;
+    padding-bottom: 8px;
+}
+
+#members-list .account-avatar {
+    width: 60px;
+    height: 60px;
+    border-width: 4px;
+}
+
+#members-list .account-avatar img {
+    width: 100%;
+    height: 100%;
+}
+
+#members-list .account-status-indicator {
+    width: 12px;
+    height: 12px;
+    border-width: 2px;
+}
+
+#members-list .account-names-section {
+    padding: 0 4px;
+}
+
+#members-list .account-username-text {
+    font-size: 15px;
+}
+
+#members-list .account-global-name {
+    font-size: 12px;
+}
+
+#members-list .account-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 8px 0;
+}
+
+#members-list .account-stat {
+    text-align: center;
+    padding: 4px;
+    background: var(--surface-light);
+    border-radius: 6px;
+}
+
+#members-list .account-section {
+    margin-top: 4px;
+}
+
+#members-list .account-section-title {
+    font-size: 10px;
+    margin-bottom: 4px;
+}
+
+#members-list .account-bio {
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+#members-list .account-roles {
+    font-size: 11px;
+}
+
+#members-list .account-role {
+    padding: 2px 6px;
+    font-size: 10px;
+}
+
+#members-list .account-meta-item {
+    font-size: 11px;
+}
+
+#members-list .account-meta-item i {
+    width: 12px;
+    height: 12px;
+}
+
+#members-list .account-logout-button {
+    font-size: 12px;
+    padding: 8px;
+}
+
+#members-list .account-logout-button svg {
+    width: 14px;
+    height: 14px;
+}
+
+#members-list .account-error,
+#members-list .account-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-dim);
+    font-size: 13px;
+}
 
     .account-banner {
         height: 160px
