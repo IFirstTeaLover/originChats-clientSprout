@@ -1,23 +1,24 @@
 class VoiceManager {
-    constructor() {
-        this.peer = null;
-        this.currentChannel = null;
-        this.connections = new Map();
-        this.calls = new Map();
-        this.localStream = null;
-        this.participants = new Map();
-        this.isMuted = false;
-        this.isSpeaking = false;
-        this.localAudioElement = null;
-        this.speakingDetectors = new Map();
-        this.audioContexts = new Map();
-        this.speakingAnimationFrames = new Map();
-        this.localAnalyzer = null;
-        this.localAudioContext = null;
-        this.micThreshold = parseInt(localStorage.getItem('originchats_mic_threshold') || '30', 10);
+  constructor() {
+    this.peer = null;
+    this.currentChannel = null;
+    this.connections = new Map();
+    this.calls = new Map();
+    this.localStream = null;
+    this.participants = new Map();
+    this.isMuted = false;
+    this.isSpeaking = false;
+    this.localAudioElement = null;
+    this.speakingDetectors = new Map();
+    this.audioContexts = new Map();
+    this.speakingAnimationFrames = new Map();
+    this.localAnimationFrameId = null;
+    this.localAnalyzer = null;
+    this.localAudioContext = null;
+    this.micThreshold = parseInt(localStorage.getItem('originchats_mic_threshold') || '30', 10);
 
-        this.initPeerJS();
-    }
+    this.initPeerJS();
+  }
 
     _getUserKey(username) {
         return username.toLowerCase();
@@ -108,18 +109,18 @@ class VoiceManager {
                             renderChannels();
                         }
                     }
-                } catch (e) {
-                    console.error('[Voice] Error in local speaking detection:', e);
-                }
-
-                requestAnimationFrame(checkSpeaking);
-            };
-
-            requestAnimationFrame(checkSpeaking);
-        } catch (error) {
-            console.error('[Voice] Failed to setup local speaking detection:', error);
-        }
+} catch (e) {
+      console.error('[Voice] Error in local speaking detection:', e);
     }
+
+    this.localAnimationFrameId = requestAnimationFrame(checkSpeaking);
+  };
+
+  this.localAnimationFrameId = requestAnimationFrame(checkSpeaking);
+} catch (error) {
+  console.error('[Voice] Failed to setup local speaking detection:', error);
+}
+}
 
     async joinChannel(channelName) {
         if (!this.peer || !this.peer.id) {
@@ -257,16 +258,22 @@ class VoiceManager {
             this.localAudioContext = null;
         }
 
-        // Clean up speaking detectors
-        this.speakingDetectors.forEach((analyzer, peerId) => {
-            if (analyzer && analyzer.disconnect) {
-                analyzer.disconnect();
-            }
-        });
-        this.speakingDetectors.clear();
+// Clean up speaking detectors
+  this.speakingDetectors.forEach((analyzer, peerId) => {
+    if (analyzer && analyzer.disconnect) {
+      analyzer.disconnect();
+    }
+  });
+  this.speakingDetectors.clear();
 
-        this.localAnalyzer = null;
-        this.isSpeaking = false;
+  // Cancel local speaking animation frame
+  if (this.localAnimationFrameId) {
+    cancelAnimationFrame(this.localAnimationFrameId);
+    this.localAnimationFrameId = null;
+  }
+
+  this.localAnalyzer = null;
+  this.isSpeaking = false;
 
         // Stop local stream
         if (this.localStream) {

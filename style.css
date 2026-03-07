@@ -4293,19 +4293,22 @@ pre {
 }
 
 .guild-icon {
-    width: var(--space-9);
-    height: var(--space-9);
-    border-radius: var(--radius-pill);
-    background: var(--surface);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color var(--anim-normal) var(--ease-standard),
-                border-radius var(--anim-normal) var(--ease-standard),
-                transform var(--anim-normal) var(--ease-standard),
-                box-shadow var(--anim-normal) var(--ease-standard);
-    overflow: hidden;
-    position: relative;
+  width: var(--space-9);
+  height: var(--space-9);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transition: background-color var(--anim-normal) var(--ease-standard),
+    border-radius var(--anim-normal) var(--ease-standard),
+    outline-color var(--anim-normal) var(--ease-standard),
+    transform var(--anim-normal) var(--ease-standard),
+    box-shadow var(--anim-normal) var(--ease-standard);
+  overflow: hidden;
+  position: relative;
 }
 
 .guild-icon img {
@@ -4466,7 +4469,7 @@ pre {
 
 .add-guild .guild-icon {
     background: var(--surface-light);
-    border: var(--space-1) dashed var(--text-dim);
+    border: 2px dashed var(--text-dim);
 }
 
 .add-guild .guild-icon svg {

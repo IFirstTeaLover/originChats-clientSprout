@@ -229,6 +229,14 @@ function cleanupEventListeners() {
         if (channelForm) channelForm.removeEventListener('submit', eventListeners.channelForm);
         eventListeners.channelForm = null;
     }
+    if (timestampInterval) {
+        clearInterval(timestampInterval);
+        timestampInterval = null;
+    }
+    if (rateLimitTimer) {
+        clearInterval(rateLimitTimer);
+        rateLimitTimer = null;
+    }
 }
 
 window.addEventListener('beforeunload', cleanupEventListeners);
@@ -710,27 +718,29 @@ function updateGuildActiveState() {
 }
 
 async function fetchAccountProfile(username) {
-    if (accountCache[username] && Date.now() - accountCache[username]._timestamp < 60000) {
-        renderAccountProfile(accountCache[username]);
-        return;
-    }
-    try {
-        const response = await fetch(`https://api.rotur.dev/profile?include_posts=0&name=${encodeURIComponent(username)}`);
-        if (!response.ok) throw new Error('Profile not found');
-        const data = await response.json();
-        data._timestamp = Date.now();
-        accountCache[username] = data;
-        renderAccountProfile(data);
-    } catch (error) {
-        const content = document.getElementById('account-content');
-        content.innerHTML = `
-            <div class="account-error">
-                <div style="font-size: 48px; margin-bottom: 16px;">😔</div>
-                <div>Could not load profile</div>
-                <div style="font-size: 12px; color: var(--text-dim); margin-top: 8px;">${error.message}</div>
-            </div>
-        `;
-    }
+  if (accountCache[username] && Date.now() - accountCache[username]._timestamp < 60000) {
+    renderAccountProfile(accountCache[username]);
+    return;
+  }
+  try {
+    const response = await fetch(`https://api.rotur.dev/profile?include_posts=0&name=${encodeURIComponent(username)}`);
+    if (!response.ok) throw new Error('Profile not found');
+    const data = await response.json();
+    if (!data || typeof data !== 'object') throw new Error('Invalid profile data');
+    data._timestamp = Date.now();
+    accountCache[username] = data;
+    renderAccountProfile(data);
+  } catch (error) {
+    const content = document.getElementById('account-content');
+    if (!content) return;
+    content.innerHTML = `
+      <div class="account-error">
+        <div style="font-size: 48px; margin-bottom: 16px;">😔</div>
+        <div>Could not load profile</div>
+        <div style="font-size: 12px; color: var(--text-dim); margin-top: 8px;">${escapeHtml(error.message)}</div>
+      </div>
+    `;
+  }
 }
 
 async function fetchMyAccountData() {
@@ -970,12 +980,6 @@ function getUserByUsernameCaseInsensitive(username, serverUrl) {
     return null;
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
 function isEmojiOnly(content) {
     if (!content || content.trim().length === 0) return false;
     const trimmed = content.trim();
@@ -1066,12 +1070,12 @@ function markDMAsRead(dmServer) {
 }
 
 function showChannelContextMenu(event, channel) {
-  const serverUrl = state.serverUrl;
-  contextMenu(event)
-    .item('Mark as Read', () => markChannelAsRead(channel, serverUrl), 'check-circle')
-    .sep()
-    .item('Copy Channel Name', () => navigator.clipboard.writeText(channel.name), 'copy')
-    .show();
+    const serverUrl = state.serverUrl;
+    contextMenu(event)
+        .item('Mark as Read', () => markChannelAsRead(channel, serverUrl), 'check-circle')
+        .sep()
+        .item('Copy Channel Name', () => navigator.clipboard.writeText(channel.name), 'copy')
+        .show();
 }
 
 function renderServerDropdown() {
@@ -1834,12 +1838,12 @@ async function handleMessage(msg, serverUrl) {
             break;
         }
 
-        case 'message_delete': {
-            if (!state.messagesByServer[serverUrl]?.[msg.channel]) break;
-            state.messagesByServer[serverUrl][msg.channel] = state.messagesByServer[serverUrl][msg.channel].filter(m => m.id !== msg.id);
-            if (state.serverUrl === serverUrl && msg.channel === state.currentChannel?.name) removeMessage(msg.id);
-            break;
-        }
+case 'message_delete': {
+  if (!state.messagesByServer[serverUrl]?.[msg.channel]) break;
+  state.messagesByServer[serverUrl][msg.channel] = state.messagesByServer[serverUrl][msg.channel].filter(m => m.id !== msg.id);
+  if (state.serverUrl === serverUrl && msg.channel === state.currentChannel?.name) renderMessages();
+  break;
+}
 
         case 'typing': {
             const { channel, user } = msg;
@@ -2028,7 +2032,6 @@ async function selectChannel(channel) {
         channelNameEl.appendChild(document.createTextNode('Notes'));
 
         if (state.unreadPings[channel.name]) delete state.unreadPings[channel.name];
-        if (state.unreadReplies[channel.name]) delete state.unreadReplies[channel.name];
         if (state.unreadReplies[channel.name]) delete state.unreadReplies[channel.name];
         renderChannels();
 
@@ -2431,7 +2434,8 @@ function updateAllTimestamps() {
         if (timestamp) { el.textContent = formatTimestamp(timestamp); el.title = getFullTimestamp(timestamp); }
     });
 }
-setInterval(updateAllTimestamps, 60000);
+
+let timestampInterval = setInterval(updateAllTimestamps, 60000);
 
 function getDaySeparator(timestamp) {
     const date = new Date(timestamp * 1000);
@@ -2645,89 +2649,89 @@ function makeMessageElement(msg, isSameUserRecent) {
         msgText.style.display = 'none';
     } else {
         msgText.style.display = '';
-  msgText.classList.toggle('emoji-only', isEmojiOnly(msg.content));
-  }
-
-  msgText.querySelectorAll("pre code").forEach(block => {
-    try {
-      const code = block.textContent;
-      block.textContent = code;
-      hljs.highlightElement(block);
-    } catch (e) {
-      console.debug('Highlight error:', e);
+        msgText.classList.toggle('emoji-only', isEmojiOnly(msg.content));
     }
-  });
-  msgText.querySelectorAll("a.potential-image").forEach(link => _processPotentialImageLink(link, groupContent));
 
-  msgText.classList.remove('mentioned');
-  if (state.currentUser) {
-    const matches = msg.content.match(pingRegex);
-    if (matches && matches.filter(m => m.trim().toLowerCase() === '@' + state.currentUser.username.toLowerCase()).length > 0) {
-      msgText.classList.add('mentioned');
+    msgText.querySelectorAll("pre code").forEach(block => {
+        try {
+            const code = block.textContent;
+            block.textContent = code;
+            hljs.highlightElement(block);
+        } catch (e) {
+            console.debug('Highlight error:', e);
+        }
+    });
+    msgText.querySelectorAll("a.potential-image").forEach(link => _processPotentialImageLink(link, groupContent));
+
+    msgText.classList.remove('mentioned');
+    if (state.currentUser) {
+        const matches = msg.content.match(pingRegex);
+        if (matches && matches.filter(m => m.trim().toLowerCase() === '@' + state.currentUser.username.toLowerCase()).length > 0) {
+            msgText.classList.add('mentioned');
+        }
     }
-  }
 
-  const groupContent2 = wrapper.querySelector('.message-group-content');
-  if (groupContent2) _processEmbedLinks(embedLinks, groupContent2);
+    const groupContent2 = wrapper.querySelector('.message-group-content');
+    if (groupContent2) _processEmbedLinks(embedLinks, groupContent2);
 
-  if (!isHead) {
-    const hoverTs = document.createElement('div');
-    hoverTs.className = 'hover-timestamp';
-    hoverTs.dataset.timestamp = msg.timestamp;
-    hoverTs.textContent = formatTimestamp(msg.timestamp);
-    if (msg.edited || msg.editedAt) {
-      const editedSpan = document.createElement('span');
-      editedSpan.className = 'edited-indicator';
-      editedSpan.textContent = '(edited)';
-      hoverTs.appendChild(editedSpan);
+    if (!isHead) {
+        const hoverTs = document.createElement('div');
+        hoverTs.className = 'hover-timestamp';
+        hoverTs.dataset.timestamp = msg.timestamp;
+        hoverTs.textContent = formatTimestamp(msg.timestamp);
+        if (msg.edited || msg.editedAt) {
+            const editedSpan = document.createElement('span');
+            editedSpan.className = 'edited-indicator';
+            editedSpan.textContent = '(edited)';
+            hoverTs.appendChild(editedSpan);
+        }
+        groupContent.appendChild(hoverTs);
     }
-    groupContent.appendChild(hoverTs);
-  }
 
-  groupContent.appendChild(msgText);
+    groupContent.appendChild(msgText);
 
-  msgText.querySelectorAll('.message-image').forEach(img => attachImageErrorFallback(img, img.src || img.dataset.imageUrl));
+    msgText.querySelectorAll('.message-image').forEach(img => attachImageErrorFallback(img, img.src || img.dataset.imageUrl));
 
-  window.renderReactions(msg, groupContent);
+    window.renderReactions(msg, groupContent);
 
-  setupMessageSwipe(wrapper, msg);
+    setupMessageSwipe(wrapper, msg);
 
-  wrapper.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    const imgEl = e.target.closest('.message-image');
-    const link = e.target.closest('a[href]');
-    if (imgEl && imgEl.dataset.imageUrl) {
-      openImageContextMenu(e, msg, imgEl.dataset.imageUrl);
-    } else if (link && link.href && !link.href.startsWith('javascript:')) {
-      openLinkContextMenu(e, link.href);
-    } else {
-      openMessageContextMenu(e, msg);
-    }
-  });
+    wrapper.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const imgEl = e.target.closest('.message-image');
+        const link = e.target.closest('a[href]');
+        if (imgEl && imgEl.dataset.imageUrl) {
+            openImageContextMenu(e, msg, imgEl.dataset.imageUrl);
+        } else if (link && link.href && !link.href.startsWith('javascript:')) {
+            openLinkContextMenu(e, link.href);
+        } else {
+            openMessageContextMenu(e, msg);
+        }
+    });
 
-  return wrapper;
+    return wrapper;
 }
 
 async function renderMessages(shouldScrollToBottom = true) {
-  if (state.renderInProgress) return;
-  state.renderInProgress = true;
+    if (state.renderInProgress) return;
+    state.renderInProgress = true;
 
-  const container = document.getElementById("messages");
-  if (!state.currentChannel?.name) { container.innerHTML = ''; state.renderInProgress = false; return; }
+    const container = document.getElementById("messages");
+    if (!state.currentChannel?.name) { container.innerHTML = ''; state.renderInProgress = false; return; }
 
-  const channel = state.currentChannel.name;
-  if (!state.messagesByServer[state.serverUrl]?.[channel]) {
-    container.innerHTML = "";
-    state.renderInProgress = false;
-    return;
-  }
+    const channel = state.currentChannel.name;
+    if (!state.messagesByServer[state.serverUrl]?.[channel]) {
+        container.innerHTML = "";
+        state.renderInProgress = false;
+        return;
+    }
 
-  const messages = state.messagesByServer[state.serverUrl][channel].slice().sort((a, b) => a.timestamp - b.timestamp);
+    const messages = state.messagesByServer[state.serverUrl][channel].slice().sort((a, b) => a.timestamp - b.timestamp);
 
-  if (messages.length === 0) {
-    state.renderInProgress = false;
-    const channelName = state.currentChannel.display_name || state.currentChannel.name;
-    container.innerHTML = `
+    if (messages.length === 0) {
+        state.renderInProgress = false;
+        const channelName = state.currentChannel.display_name || state.currentChannel.name;
+        container.innerHTML = `
       <div class="empty-channel-message">
         <div class="empty-channel-icon">💬</div>
         <div class="empty-channel-title">Welcome to #${channelName}</div>
@@ -2735,67 +2739,67 @@ async function renderMessages(shouldScrollToBottom = true) {
         <div class="empty-channel-text">Be the first to send a message!</div>
       </div>
     `;
-    return;
-  }
-
-  const existingMsgIds = new Set();
-  container.querySelectorAll('[data-msg-id]').forEach(el => existingMsgIds.add(el.dataset.msgId));
-
-  const existingDaySeparators = new Set();
-  container.querySelectorAll('[data-separator-date]').forEach(el => existingDaySeparators.add(el.dataset.separatorDate));
-
-  const isInitialRender = existingMsgIds.size === 0;
-  if (isInitialRender) {
-    container.innerHTML = '';
-  } else {
-    container.querySelector('.loading-throbber')?.remove();
-  }
-
-  const fragment = document.createDocumentFragment();
-  lastUser = null; lastTime = 0; lastGroup = null;
-  let consecutiveCount = 0, lastDate = null;
-
-  for (const msg of messages) {
-    if (existingMsgIds.has(msg.id)) {
-      lastUser = msg.user; lastTime = msg.timestamp;
-      lastDate = new Date(msg.timestamp * 1000).toDateString();
-      if (msg.user === lastUser && msg.timestamp - lastTime < 300) { consecutiveCount++; } else { consecutiveCount = 0; }
-      continue;
+        return;
     }
-    const msgDate = new Date(msg.timestamp * 1000).toDateString();
-    if (lastDate !== null && msgDate !== lastDate && !existingDaySeparators.has(msgDate)) {
-      fragment.appendChild(getDaySeparator(msg.timestamp));
-      consecutiveCount = 0;
+
+    const existingMsgIds = new Set();
+    container.querySelectorAll('[data-msg-id]').forEach(el => existingMsgIds.add(el.dataset.msgId));
+
+    const existingDaySeparators = new Set();
+    container.querySelectorAll('[data-separator-date]').forEach(el => existingDaySeparators.add(el.dataset.separatorDate));
+
+    const isInitialRender = existingMsgIds.size === 0;
+    if (isInitialRender) {
+        container.innerHTML = '';
+    } else {
+        container.querySelector('.loading-throbber')?.remove();
     }
-    lastDate = msgDate;
 
-    const isSameUserRecent = msg.user === lastUser && msg.timestamp - lastTime < 300 && consecutiveCount < 20;
-    if (msg.user === lastUser && msg.timestamp - lastTime < 300) { consecutiveCount++; } else { consecutiveCount = 0; }
+    const fragment = document.createDocumentFragment();
+    lastUser = null; lastTime = 0; lastGroup = null;
+    let consecutiveCount = 0, lastDate = null;
 
-    fragment.appendChild(makeMessageElement(msg, isSameUserRecent));
-    lastUser = msg.user; lastTime = msg.timestamp;
-  }
+    for (const msg of messages) {
+        if (existingMsgIds.has(msg.id)) {
+            lastUser = msg.user; lastTime = msg.timestamp;
+            lastDate = new Date(msg.timestamp * 1000).toDateString();
+            if (msg.user === lastUser && msg.timestamp - lastTime < 300) { consecutiveCount++; } else { consecutiveCount = 0; }
+            continue;
+        }
+        const msgDate = new Date(msg.timestamp * 1000).toDateString();
+        if (lastDate !== null && msgDate !== lastDate && !existingDaySeparators.has(msgDate)) {
+            fragment.appendChild(getDaySeparator(msg.timestamp));
+            consecutiveCount = 0;
+        }
+        lastDate = msgDate;
 
-  if (fragment.childNodes.length > 0) container.appendChild(fragment);
+        const isSameUserRecent = msg.user === lastUser && msg.timestamp - lastTime < 300 && consecutiveCount < 20;
+        if (msg.user === lastUser && msg.timestamp - lastTime < 300) { consecutiveCount++; } else { consecutiveCount = 0; }
 
-  if (shouldScrollToBottom || isInitialRender) {
-    scrollToBottom();
-    let observer;
-    try {
-      observer = new MutationObserver(() => { if (!state._olderLoading) scrollToBottom(); });
-      observer.observe(container, { childList: true, subtree: true });
-    } catch { }
-    container.querySelectorAll('img').forEach(img => {
-      if (!img.complete) {
-        attachImageScrollHandler(img);
-      }
-    });
-    setTimeout(() => { if (observer) observer.disconnect(); }, 2000);
-  }
+        fragment.appendChild(makeMessageElement(msg, isSameUserRecent));
+        lastUser = msg.user; lastTime = msg.timestamp;
+    }
 
-  setupImageLazyLoading(container);
-  updateTypingIndicator();
-  state.renderInProgress = false;
+    if (fragment.childNodes.length > 0) container.appendChild(fragment);
+
+    if (shouldScrollToBottom || isInitialRender) {
+        scrollToBottom();
+        let observer;
+        try {
+            observer = new MutationObserver(() => { if (!state._olderLoading) scrollToBottom(); });
+            observer.observe(container, { childList: true, subtree: true });
+        } catch { }
+        container.querySelectorAll('img').forEach(img => {
+            if (!img.complete) {
+                attachImageScrollHandler(img);
+            }
+        });
+        setTimeout(() => { if (observer) observer.disconnect(); }, 2000);
+    }
+
+    setupImageLazyLoading(container);
+    updateTypingIndicator();
+    state.renderInProgress = false;
 }
 
 function appendMessage(msg) {
@@ -2825,218 +2829,200 @@ function appendMessage(msg) {
         if (messageText) window.twemoji.parse(messageText);
     }
 
-  scrollToBottom();
+    scrollToBottom();
 }
 
 function updateMessageContent(msgId, newContent) {
-  const wrapper = document.querySelector(`[data-msg-id="${msgId}"]`);
-  if (!wrapper) return;
-  const msgText = wrapper.querySelector('.message-text');
-  if (!msgText) return;
-  const msg = state.messagesByServer[state.serverUrl]?.[state.currentChannel.name]?.find(m => m.id === msgId);
-  if (!msg) return;
+    const wrapper = document.querySelector(`[data-msg-id="${msgId}"]`);
+    if (!wrapper) return;
+    const msgText = wrapper.querySelector('.message-text');
+    if (!msgText) return;
+    const msg = state.messagesByServer[state.serverUrl]?.[state.currentChannel.name]?.find(m => m.id === msgId);
+    if (!msg) return;
 
-  const embedLinks = [];
-  msgText.innerHTML = parseMsg(msg, embedLinks);
+    const embedLinks = [];
+    msgText.innerHTML = parseMsg(msg, embedLinks);
 
-  msgText.querySelectorAll('.message-image').forEach(img => {
-    if (img.dataset.imageUrl) {
-      attachImageErrorFallback(img, img.dataset.imageUrl || img.src);
-      img.loading = 'lazy';
+    msgText.querySelectorAll('.message-image').forEach(img => {
+        if (img.dataset.imageUrl) {
+            attachImageErrorFallback(img, img.dataset.imageUrl || img.src);
+            img.loading = 'lazy';
+        }
+    });
+
+    if (embedLinks.length === 1 && isTenorOnlyMessage(embedLinks, msg.content)) {
+        msgText.style.display = 'none';
+    } else {
+        msgText.style.display = '';
+        msgText.classList.toggle('emoji-only', isEmojiOnly(msg.content));
     }
-  });
 
-  if (embedLinks.length === 1 && isTenorOnlyMessage(embedLinks, msg.content)) {
-    msgText.style.display = 'none';
-  } else {
-    msgText.style.display = '';
-    msgText.classList.toggle('emoji-only', isEmojiOnly(msg.content));
-  }
+    msgText.querySelectorAll("pre code").forEach(block => {
+        try {
+            const code = block.textContent;
+            block.textContent = code;
+            hljs.highlightElement(block);
+        } catch (e) {
+            console.debug('Highlight error:', e);
+        }
+    });
+    msgText.querySelectorAll("a.potential-image").forEach(link => _processPotentialImageLink(link, wrapper.querySelector('.message-group-content')));
 
-  msgText.querySelectorAll("pre code").forEach(block => {
-    try {
-      const code = block.textContent;
-      block.textContent = code;
-      hljs.highlightElement(block);
-    } catch (e) {
-      console.debug('Highlight error:', e);
+    if (state.currentUser) {
+        const matches = msg.content.match(pingRegex);
+        if (matches && matches.filter(m => m.trim().toLowerCase() === '@' + state.currentUser.username.toLowerCase()).length > 0) {
+            msgText.classList.add('mentioned');
+        }
     }
-  });
-  msgText.querySelectorAll("a.potential-image").forEach(link => _processPotentialImageLink(link, wrapper.querySelector('.message-group-content')));
-
-  if (state.currentUser) {
-    const matches = msg.content.match(pingRegex);
-    if (matches && matches.filter(m => m.trim().toLowerCase() === '@' + state.currentUser.username.toLowerCase()).length > 0) {
-      msgText.classList.add('mentioned');
-    }
-  }
 }
 
 function revealBlockedMessage(wrapper, msg) {
-  const groupContent = wrapper.querySelector('.message-group-content');
-  if (!groupContent) return;
-  groupContent.innerHTML = '';
+    const groupContent = wrapper.querySelector('.message-group-content');
+    if (!groupContent) return;
+    groupContent.innerHTML = '';
 
-  const user = getUserByUsernameCaseInsensitive(msg.user) || { username: msg.user };
-  const isReply = "reply_to" in msg;
+    const user = getUserByUsernameCaseInsensitive(msg.user) || { username: msg.user };
+    const isReply = "reply_to" in msg;
 
-  if (isReply) {
-    const replyTo = state.messagesByServer[state.serverUrl]?.[state.currentChannel.name]?.find(m => m.id === msg.reply_to.id);
-    const replyDiv = document.createElement('div');
-    replyDiv.className = 'message-reply';
+    if (isReply) {
+        const replyTo = state.messagesByServer[state.serverUrl]?.[state.currentChannel.name]?.find(m => m.id === msg.reply_to.id);
+        const replyDiv = document.createElement('div');
+        replyDiv.className = 'message-reply';
 
-    if (replyTo) {
-      const replyUser = getUserByUsernameCaseInsensitive(replyTo.user) || { username: replyTo.user };
-      const replyText = document.createElement('div');
-      replyText.className = 'reply-text';
-      const usernameSpan = document.createElement('span');
-      usernameSpan.className = 'reply-username';
-      usernameSpan.textContent = replyUser.username + ': ';
-      const contentSpan = document.createElement('span');
-      contentSpan.className = 'reply-content';
-      contentSpan.textContent = replyTo.content;
-      replyText.appendChild(usernameSpan);
-      replyText.appendChild(contentSpan);
-      replyDiv.appendChild(getAvatar(replyUser.username, 'small'));
-      replyDiv.appendChild(replyText);
-    } else {
-      const notFoundIcon = document.createElement('div');
-      notFoundIcon.innerHTML = '<i data-lucide="x-circle"></i>';
-      const notFoundText = document.createElement('div');
-      notFoundText.className = 'reply-text';
-      notFoundText.innerHTML = '<span class="reply-username">Message not found</span>';
-      replyDiv.appendChild(notFoundIcon);
-      replyDiv.appendChild(notFoundText);
-      if (window.lucide) window.lucide.createIcons({ root: notFoundIcon });
+        if (replyTo) {
+            const replyUser = getUserByUsernameCaseInsensitive(replyTo.user) || { username: replyTo.user };
+            const replyText = document.createElement('div');
+            replyText.className = 'reply-text';
+            const usernameSpan = document.createElement('span');
+            usernameSpan.className = 'reply-username';
+            usernameSpan.textContent = replyUser.username + ': ';
+            const contentSpan = document.createElement('span');
+            contentSpan.className = 'reply-content';
+            contentSpan.textContent = replyTo.content;
+            replyText.appendChild(usernameSpan);
+            replyText.appendChild(contentSpan);
+            replyDiv.appendChild(getAvatar(replyUser.username, 'small'));
+            replyDiv.appendChild(replyText);
+        } else {
+            const notFoundIcon = document.createElement('div');
+            notFoundIcon.innerHTML = '<i data-lucide="x-circle"></i>';
+            const notFoundText = document.createElement('div');
+            notFoundText.className = 'reply-text';
+            notFoundText.innerHTML = '<span class="reply-username">Message not found</span>';
+            replyDiv.appendChild(notFoundIcon);
+            replyDiv.appendChild(notFoundText);
+            if (window.lucide) window.lucide.createIcons({ root: notFoundIcon });
+        }
+        wrapper.insertBefore(replyDiv, wrapper.firstChild);
     }
-    wrapper.insertBefore(replyDiv, wrapper.firstChild);
-  }
 
-  const header = document.createElement('div');
-  header.className = 'message-header';
-  const usernameEl = document.createElement('span');
-  usernameEl.className = 'username';
-  usernameEl.textContent = msg.user;
-  usernameEl.style.color = user.color || '#fff';
-  usernameEl.style.cursor = 'pointer';
-  usernameEl.addEventListener('click', (e) => { e.stopPropagation(); openAccountModal(msg.user); });
-  const ts = document.createElement('span');
-  ts.className = 'timestamp';
-  ts.textContent = formatTimestamp(msg.timestamp);
-  ts.dataset.timestamp = msg.timestamp;
-  ts.title = getFullTimestamp(msg.timestamp);
-  header.appendChild(usernameEl);
-  header.appendChild(ts);
-  groupContent.appendChild(header);
+    const header = document.createElement('div');
+    header.className = 'message-header';
+    const usernameEl = document.createElement('span');
+    usernameEl.className = 'username';
+    usernameEl.textContent = msg.user;
+    usernameEl.style.color = user.color || '#fff';
+    usernameEl.style.cursor = 'pointer';
+    usernameEl.addEventListener('click', (e) => { e.stopPropagation(); openAccountModal(msg.user); });
+    const ts = document.createElement('span');
+    ts.className = 'timestamp';
+    ts.textContent = formatTimestamp(msg.timestamp);
+    ts.dataset.timestamp = msg.timestamp;
+    ts.title = getFullTimestamp(msg.timestamp);
+    header.appendChild(usernameEl);
+    header.appendChild(ts);
+    groupContent.appendChild(header);
 
-  const msgText = document.createElement('div');
-  msgText.className = 'message-text';
-  const embedLinks = [];
-  msgText.innerHTML = parseMsg(msg, embedLinks);
-  groupContent.appendChild(msgText);
+    const msgText = document.createElement('div');
+    msgText.className = 'message-text';
+    const embedLinks = [];
+    msgText.innerHTML = parseMsg(msg, embedLinks);
+    groupContent.appendChild(msgText);
 
-  msgText.querySelectorAll('.message-image').forEach(img => attachImageErrorFallback(img, img.src || img.dataset.imageUrl));
-  msgText.querySelectorAll("pre code").forEach(block => {
-    try {
-      const code = block.textContent;
-      block.textContent = code;
-      hljs.highlightElement(block);
-    } catch (e) {
-      console.debug('Highlight error:', e);
+    msgText.querySelectorAll('.message-image').forEach(img => attachImageErrorFallback(img, img.src || img.dataset.imageUrl));
+    msgText.querySelectorAll("pre code").forEach(block => {
+        try {
+            const code = block.textContent;
+            block.textContent = code;
+            hljs.highlightElement(block);
+        } catch (e) {
+            console.debug('Highlight error:', e);
+        }
+    });
+    msgText.querySelectorAll("a.potential-image").forEach(link => _processPotentialImageLink(link, groupContent));
+
+    window.renderReactions(msg, groupContent);
+}
+
+async function deleteMessage(msg) {
+    if (state.currentChannel?.name === 'notes' && window.notesChannel) {
+        await window.notesChannel.deleteMessage(msg.id);
+        if (state.messagesByServer[state.serverUrl]?.['notes']) {
+            state.messagesByServer[state.serverUrl]['notes'] = state.messagesByServer[state.serverUrl]['notes'].filter(m => m.id !== msg.id);
+        }
+        renderMessages();
+        return;
     }
-  });
-  msgText.querySelectorAll("a.potential-image").forEach(link => _processPotentialImageLink(link, groupContent));
+    wsSend({ cmd: 'message_delete', id: msg.id, channel: state.currentChannel.name }, state.serverUrl);
+}
+window.deleteMessage = deleteMessage;
 
-  window.renderReactions(msg, groupContent);
+function getMessageContextMenuHelpers(event, msg) {
+    return {
+        copyText: () => { if (msg.content) navigator.clipboard.writeText(msg.content); },
+        copyId: () => navigator.clipboard.writeText(msg.id),
+        quote: () => {
+            const input = document.getElementById('message-input');
+            const qt = msg.content ? `> ${msg.content.replace(/\n/g, '\n> ')}` : '> [Attachment]';
+            input.value = qt + '\n\n' + input.value;
+            input.focus();
+            input.selectionStart = input.selectionEnd = 0;
+            input.dispatchEvent(new Event('input'));
+        },
+        react: () => {
+            const anchor = document.createElement('div');
+            anchor.style.cssText = `position: absolute; left: ${event.clientX}px; top: ${event.clientY}px;`;
+            document.body.appendChild(anchor);
+            openReactionPicker(msg.id, anchor);
+            setTimeout(() => anchor.remove(), 100);
+        }
+    };
 }
 
 function openMessageContextMenu(event, msg) {
-  async function deleteMessage(msg) {
-    if (state.currentChannel?.name === 'notes' && window.notesChannel) {
-      await window.notesChannel.deleteMessage(msg.id);
-      if (state.messagesByServer[state.serverUrl]?.['notes']) {
-        state.messagesByServer[state.serverUrl]['notes'] = state.messagesByServer[state.serverUrl]['notes'].filter(m => m.id !== msg.id);
-      }
-      renderMessages();
-      return;
-    }
-    wsSend({ cmd: 'message_delete', id: msg.id, channel: state.currentChannel.name }, state.serverUrl);
-  }
-  window.deleteMessage = deleteMessage;
-
-  const copyText = () => { if (msg.content) navigator.clipboard.writeText(msg.content); };
-  const copyId = () => navigator.clipboard.writeText(msg.id);
-  const quote = () => {
-    const input = document.getElementById('message-input');
-    const qt = msg.content ? `> ${msg.content.replace(/\n/g, '\n> ')}` : '> [Attachment]';
-    input.value = qt + '\n\n' + input.value;
-    input.focus();
-    input.selectionStart = input.selectionEnd = 0;
-    input.dispatchEvent(new Event('input'));
-  };
-  const react = () => {
-    const anchor = document.createElement('div');
-    anchor.style.cssText = `position: absolute; left: ${event.clientX}px; top: ${event.clientY}px;`;
-    document.body.appendChild(anchor);
-    openReactionPicker(msg.id, anchor);
-    setTimeout(() => anchor.remove(), 100);
-  };
-
-  const m = contextMenu(event);
-  if (msg.user === state.currentUser?.username) m.item('Edit', () => startEditMessage(msg), 'edit-3');
-  m.item('Reply', () => replyToMessage(msg), 'message-circle')
-    .item('Copy text', copyText, 'copy')
-    .item('Copy ID', copyId, 'hash')
-    .item('Quote', quote, 'corner-up-right')
-    .item('React', react, 'smile')
-    .sep()
-    .danger('Delete', () => deleteMessage(msg))
-    .show();
+    const h = getMessageContextMenuHelpers(event, msg);
+    const m = contextMenu(event);
+    if (msg.user === state.currentUser?.username) m.item('Edit', () => startEditMessage(msg), 'edit-3');
+    m.item('Reply', () => replyToMessage(msg), 'message-circle')
+        .item('Copy text', h.copyText, 'copy')
+        .item('Copy ID', h.copyId, 'hash')
+        .item('Quote', h.quote, 'corner-up-right')
+        .item('React', h.react, 'smile')
+        .sep()
+        .danger('Delete', () => deleteMessage(msg))
+        .show();
 }
 
 function openLinkContextMenu(event, url) {
-  contextMenu(event)
-    .item('Copy URL', () => navigator.clipboard.writeText(url), 'copy')
-    .item('Open in new tab', () => window.open(url, '_blank', 'noopener,noreferrer'), 'external-link')
-    .show();
+    contextMenu(event)
+        .item('Copy URL', () => navigator.clipboard.writeText(url), 'copy')
+        .item('Open in new tab', () => window.open(url, '_blank', 'noopener,noreferrer'), 'external-link')
+        .show();
 }
 
 function openImageContextMenu(event, msg, imageUrl) {
-  async function deleteMessage(msg) {
-    if (state.currentChannel?.name === 'notes' && window.notesChannel) {
-      await window.notesChannel.deleteMessage(msg.id);
-      if (state.messagesByServer[state.serverUrl]?.['notes']) {
-        state.messagesByServer[state.serverUrl]['notes'] = state.messagesByServer[state.serverUrl]['notes'].filter(m => m.id !== msg.id);
-      }
-      renderMessages();
-      return;
-    }
-    wsSend({ cmd: 'message_delete', id: msg.id, channel: state.currentChannel.name }, state.serverUrl);
-  }
-  window.deleteMessage = deleteMessage;
-
-  const copyText = () => { if (msg.content) navigator.clipboard.writeText(msg.content); };
-  const copyId = () => navigator.clipboard.writeText(msg.id);
-  const copyUrl = () => navigator.clipboard.writeText(imageUrl);
-  const react = () => {
-    const anchor = document.createElement('div');
-    anchor.style.cssText = `position: absolute; left: ${event.clientX}px; top: ${event.clientY}px;`;
-    document.body.appendChild(anchor);
-    openReactionPicker(msg.id, anchor);
-    setTimeout(() => anchor.remove(), 100);
-  };
-
-  const m = contextMenu(event);
-  if (msg.user === state.currentUser?.username) m.item('Edit', () => startEditMessage(msg), 'edit-3');
-  m.item('Reply', () => replyToMessage(msg), 'message-circle')
-    .item('Copy text', copyText, 'copy')
-    .item('Copy ID', copyId, 'hash')
-    .item('Copy image URL', copyUrl, 'image')
-    .item('Open image', () => window.open(imageUrl, '_blank', 'noopener,noreferrer'), 'external-link')
-    .item('React', react, 'smile')
-    .sep()
-    .danger('Delete', () => deleteMessage(msg))
-    .show();
+    const h = getMessageContextMenuHelpers(event, msg);
+    const m = contextMenu(event);
+    if (msg.user === state.currentUser?.username) m.item('Edit', () => startEditMessage(msg), 'edit-3');
+    m.item('Reply', () => replyToMessage(msg), 'message-circle')
+        .item('Copy text', h.copyText, 'copy')
+        .item('Copy ID', h.copyId, 'hash')
+        .item('Copy image URL', () => navigator.clipboard.writeText(imageUrl), 'image')
+        .item('Open image', () => window.open(imageUrl, '_blank', 'noopener,noreferrer'), 'external-link')
+        .item('React', h.react, 'smile')
+        .sep()
+        .danger('Delete', () => deleteMessage(msg))
+        .show();
 }
 
 function checkPermission(roles, permissions) {
@@ -4038,15 +4024,15 @@ if (input) {
 }
 
 function showDMContextMenu(event, dmServer) {
-  contextMenu(event)
-    .item('Mark as Read', () => markDMAsRead(dmServer), 'check-circle')
-    .sep()
-    .item('Remove from sidebar', () => {
-      state.dmServers = state.dmServers.filter(dm => dm.channel !== dmServer.channel);
-      localStorage.setItem('originchats_dm_servers', JSON.stringify(state.dmServers));
-      renderGuildSidebar();
-    }, 'x-circle')
-    .show();
+    contextMenu(event)
+        .item('Mark as Read', () => markDMAsRead(dmServer), 'check-circle')
+        .sep()
+        .item('Remove from sidebar', () => {
+            state.dmServers = state.dmServers.filter(dm => dm.channel !== dmServer.channel);
+            localStorage.setItem('originchats_dm_servers', JSON.stringify(state.dmServers));
+            renderGuildSidebar();
+        }, 'x-circle')
+        .show();
 }
 
 function openDMCreateModal() {

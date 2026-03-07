@@ -6,34 +6,28 @@ function replaceShortcodes(text) {
     });
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
 function escapeAttribute(text) {
     return text.replace(/&/g, "&amp;")
-               .replace(/</g, "&lt;")
-               .replace(/>/g, "&gt;")
-               .replace(/"/g, "&quot;")
-               .replace(/'/g, "&#x27;");
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#x27;");
 }
 
 function parseMarkdown(text, embedLinks) {
-  const codeBlocks = [];
+    const codeBlocks = [];
 
-  text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-    lang = lang || "plaintext";
+    text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+        lang = lang || "plaintext";
 
-    const placeholder = `§CODEBLOCK_${codeBlocks.length}§${Math.random().toString(36).substr(2, 9)}§`;
-    codeBlocks.push({
-      placeholder,
-      lang,
-      code
+        const placeholder = `§CODEBLOCK_${codeBlocks.length}§${Math.random().toString(36).substring(2, 11)}§`;
+        codeBlocks.push({
+            placeholder,
+            lang,
+            code
+        });
+        return placeholder;
     });
-    return placeholder;
-  });
 
     text = text.replace(/`([^`]+)`/g, (match, code) => {
         code = code.replace(/&/g, "&amp;")
@@ -87,32 +81,32 @@ function parseMarkdown(text, embedLinks) {
             return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer"><img src="${proxyImageUrl(safeUrl)}" alt="image" class="message-image" data-image-url="${safeDisplayText}"></a>`;
         }
 
-  return `<a href="${safeUrl}" class="potential-image" target="_blank" rel="noopener noreferrer" data-image-url="${safeDisplayText}">${safeDisplayText}</a>`;
-  });
+        return `<a href="${safeUrl}" class="potential-image" target="_blank" rel="noopener noreferrer" data-image-url="${safeDisplayText}">${safeDisplayText}</a>`;
+    });
 
-  text = text.replace(/\n(?!<\/?(h[1-6]|pre))/g, "<br>");
+    text = text.replace(/\n(?!<\/?(h[1-6]|pre))/g, "<br>");
 
-  for (const block of codeBlocks) {
-    const escapedCode = block.code
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    const html = `<pre><code class="language-${block.lang}">${escapedCode}</code></pre>`;
-    text = text.replace(block.placeholder, html);
-  }
+    for (const block of codeBlocks) {
+        const escapedCode = block.code
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        const html = `<pre><code class="language-${block.lang}">${escapedCode}</code></pre>`;
+        text = text.replace(block.placeholder, html);
+    }
 
-  return text;
+    return text;
 }
 
 function parseMsg(msg, embedLinks) {
     let text = msg.content;
     text = parseMarkdown(text, embedLinks);
-    
+
     if (typeof DOMPurify === 'undefined' || !DOMPurify.sanitize) {
         console.error('DOMPurify not available - messages may not be sanitized properly');
         return escapeHtml(text);
     }
-    
+
     text = DOMPurify.sanitize(text, {
         ALLOWED_TAGS: ['a', 'span', 'code', 'pre', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'br', 'img'],
         ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'data-user', 'data-channel', 'data-image-url', 'src', 'alt', 'language', 'data-msg-id'],
@@ -122,7 +116,7 @@ function parseMsg(msg, embedLinks) {
         SAFE_FOR_JAVASCRIPT: true,
         SANITIZE_DOM: true
     });
-    
+
     return text;
 }
 
