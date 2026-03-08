@@ -981,9 +981,14 @@ function getUserByUsernameCaseInsensitive(username, serverUrl) {
 }
 
 function isEmojiOnly(str) {
-  const regex = emojiRegex();
-  const stripped = str.trim().replace(regex, '').trim();
-  return stripped.length === 0 && regex.test(str);
+  const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+  const parts = [...seg.segment(str.trim())];
+
+  if (parts.length === 0) return false;
+
+  return parts.every(({ segment }) =>
+    /\p{Extended_Pictographic}/u.test(segment) || /^\s+$/.test(segment)
+  );
 }
 
 window.openAccountModal = openAccountModal;
@@ -4457,15 +4462,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const updateScrollButton = () => {
             const isNearBottom = (messagesEl.scrollHeight - (messagesEl.scrollTop + messagesEl.clientHeight)) < 80;
             scrollBtn.style.display = isNearBottom ? 'none' : 'flex';
-        };
+};
 
-        messagesEl.addEventListener('scroll', updateScrollButton);
+messagesEl.addEventListener('scroll', updateScrollButton);
 
-        scrollBtn.addEventListener('click', () => {
-            messagesEl.scrollTop = messagesEl.scrollHeight;
-        });
+scrollBtn.addEventListener('click', () => {
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+});
 
-        const observer = new MutationObserver(updateScrollButton);
-        observer.observe(messagesEl, { childList: true, subtree: true });
-    }
+const observer = new MutationObserver(updateScrollButton);
+observer.observe(messagesEl, { childList: true, subtree: true });
+}
+
+function openMessageSearch() {
+if (!window.MembersContent) return;
+if (state.serverUrl === 'dms.mistium.com' && (!state.currentChannel || ['home', 'relationships', 'notes', 'new_message'].includes(state.currentChannel.name))) {
+return;
+}
+if (!state.currentChannel) return;
+window.MembersContent.render({ type: 'search', channel: state.currentChannel });
+}
+
+function openPinnedMessages() {
+if (!window.MembersContent) return;
+if (state.serverUrl === 'dms.mistium.com' && (!state.currentChannel || ['home', 'relationships', 'notes', 'new_message'].includes(state.currentChannel.name))) {
+return;
+}
+if (!state.currentChannel) return;
+window.MembersContent.render({ type: 'pinned', channel: state.currentChannel });
+}
 });
