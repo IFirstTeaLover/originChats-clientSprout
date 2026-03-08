@@ -41,7 +41,11 @@ let state = {
     pendingReplyFetches: {},
     friends: [],
     friendRequests: [],
-    blockedUsers: []
+    blockedUsers: [],
+    scrollPositionsByChannel: {},
+    virtualScrollers: {},
+    autoScrollEnabled: true,
+    _pendingChannelSwitch: null
 };
 
 const pendingReplyTimeouts = {};
@@ -718,29 +722,29 @@ function updateGuildActiveState() {
 }
 
 async function fetchAccountProfile(username) {
-  if (accountCache[username] && Date.now() - accountCache[username]._timestamp < 60000) {
-    renderAccountProfile(accountCache[username]);
-    return;
-  }
-  try {
-    const response = await fetch(`https://api.rotur.dev/profile?include_posts=0&name=${encodeURIComponent(username)}`);
-    if (!response.ok) throw new Error('Profile not found');
-    const data = await response.json();
-    if (!data || typeof data !== 'object') throw new Error('Invalid profile data');
-    data._timestamp = Date.now();
-    accountCache[username] = data;
-    renderAccountProfile(data);
-  } catch (error) {
-    const content = document.getElementById('account-content');
-    if (!content) return;
-    content.innerHTML = `
+    if (accountCache[username] && Date.now() - accountCache[username]._timestamp < 60000) {
+        renderAccountProfile(accountCache[username]);
+        return;
+    }
+    try {
+        const response = await fetch(`https://api.rotur.dev/profile?include_posts=0&name=${encodeURIComponent(username)}`);
+        if (!response.ok) throw new Error('Profile not found');
+        const data = await response.json();
+        if (!data || typeof data !== 'object') throw new Error('Invalid profile data');
+        data._timestamp = Date.now();
+        accountCache[username] = data;
+        renderAccountProfile(data);
+    } catch (error) {
+        const content = document.getElementById('account-content');
+        if (!content) return;
+        content.innerHTML = `
       <div class="account-error">
         <div style="font-size: 48px; margin-bottom: 16px;">😔</div>
         <div>Could not load profile</div>
         <div style="font-size: 12px; color: var(--text-dim); margin-top: 8px;">${escapeHtml(error.message)}</div>
       </div>
     `;
-  }
+    }
 }
 
 async function fetchMyAccountData() {
@@ -981,14 +985,14 @@ function getUserByUsernameCaseInsensitive(username, serverUrl) {
 }
 
 function isEmojiOnly(str) {
-  const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-  const parts = [...seg.segment(str.trim())];
+    const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+    const parts = [...seg.segment(str.trim())];
 
-  if (parts.length === 0) return false;
+    if (parts.length === 0) return false;
 
-  return parts.every(({ segment }) =>
-    /\p{Extended_Pictographic}/u.test(segment) || /^\s+$/.test(segment)
-  );
+    return parts.every(({ segment }) =>
+        /\p{Extended_Pictographic}/u.test(segment) || /^\s+$/.test(segment)
+    );
 }
 
 window.openAccountModal = openAccountModal;
@@ -1664,34 +1668,33 @@ async function handleMessage(msg, serverUrl) {
             const req = state._loadingOlder?.[ch];
             const isOlder = !!req && req.start > 0;
             if (isOlder && existing) {
-                const container = document.getElementById('messages');
-                if (container && state.serverUrl === serverUrl && ch === state.currentChannel?.name) {
-                    const oldScrollHeight = container.scrollHeight;
-                    const oldScrollTop = container.scrollTop;
+                const scroller = state.virtualScrollers?.[channelKey];
+                if (scroller && state.serverUrl === serverUrl && ch === state.currentChannel?.name) {
+                    const newItems = [];
                     let prevUser = null, prevTime = 0;
                     const firstNew = msg.messages[msg.messages.length - 1];
                     const lastNewDate = firstNew ? new Date(firstNew.timestamp * 1000).toDateString() : null;
-                    const frag = document.createDocumentFragment();
+
                     for (const m of msg.messages) {
                         const sameUserRecent = prevUser === m.user && (m.timestamp - prevTime) < 300;
-                        frag.appendChild(makeMessageElement(m, sameUserRecent));
+                        newItems.push({ type: 'message', data: m, isSameUserRecent: sameUserRecent });
                         prevUser = m.user;
                         prevTime = m.timestamp;
                     }
-                    if (container.firstChild) {
+
+                    if (existing.length > 0) {
                         const oldestExisting = existing[0];
                         const existingDate = new Date(oldestExisting.timestamp * 1000).toDateString();
-                        if (lastNewDate && existingDate !== lastNewDate) frag.appendChild(getDaySeparator(existing[0].timestamp));
+                        if (lastNewDate && existingDate !== lastNewDate) {
+                            newItems.push({ type: 'separator', timestamp: existing[0].timestamp });
+                        }
                     }
-                    container.insertBefore(frag, container.firstChild);
+
+                    scroller.prependItems(newItems);
+
                     const merged = [...msg.messages, ...existing];
                     const seen = new Set();
                     state.messagesByServer[serverUrl][ch] = merged.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
-                    const newScrollHeight = container.scrollHeight;
-                    const prevBehavior = container.style.scrollBehavior;
-                    container.style.scrollBehavior = 'auto';
-                    container.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
-                    container.style.scrollBehavior = prevBehavior || '';
                 } else {
                     const merged = [...msg.messages, ...existing];
                     const seen = new Set();
@@ -1703,7 +1706,11 @@ async function handleMessage(msg, serverUrl) {
             } else {
                 state.messagesByServer[serverUrl][ch] = msg.messages;
                 if (state.pendingMessageFetchesByChannel[channelKey]) delete state.pendingMessageFetchesByChannel[channelKey];
-                if (state.serverUrl === serverUrl && state.currentChannel && ch === state.currentChannel?.name) renderMessages();
+                if (state.serverUrl === serverUrl && state.currentChannel && ch === state.currentChannel?.name) {
+                    const shouldForceScroll = state._pendingChannelSwitch === channelKey;
+                    renderMessages(shouldForceScroll);
+                    state._pendingChannelSwitch = null;
+                }
             }
             break;
         }
@@ -1839,12 +1846,12 @@ async function handleMessage(msg, serverUrl) {
             break;
         }
 
-case 'message_delete': {
-  if (!state.messagesByServer[serverUrl]?.[msg.channel]) break;
-  state.messagesByServer[serverUrl][msg.channel] = state.messagesByServer[serverUrl][msg.channel].filter(m => m.id !== msg.id);
-  if (state.serverUrl === serverUrl && msg.channel === state.currentChannel?.name) renderMessages();
-  break;
-}
+        case 'message_delete': {
+            if (!state.messagesByServer[serverUrl]?.[msg.channel]) break;
+            state.messagesByServer[serverUrl][msg.channel] = state.messagesByServer[serverUrl][msg.channel].filter(m => m.id !== msg.id);
+            if (state.serverUrl === serverUrl && msg.channel === state.currentChannel?.name) renderMessages();
+            break;
+        }
 
         case 'typing': {
             const { channel, user } = msg;
@@ -1974,6 +1981,7 @@ function wsSend(data, serverUrl) {
     console.warn(`WebSocket not open for ${url}, message not sent:`, data);
     return false;
 }
+window.wsSend = wsSend;
 
 function updateChannelListTyping(channelName) {
     for (const item of document.querySelectorAll('.channel-item')) {
@@ -2031,6 +2039,12 @@ async function selectChannel(channel) {
         channelNameEl.innerHTML = '';
         channelNameEl.appendChild(document.createTextNode('#'));
         channelNameEl.appendChild(document.createTextNode('Notes'));
+
+        const mainHeaderChannelName = document.getElementById('main-header-channel-name');
+        if (mainHeaderChannelName) mainHeaderChannelName.textContent = 'Notes';
+
+        const mainMessagesHeader = document.getElementById('main-messages-header');
+        if (mainMessagesHeader) mainMessagesHeader.style.display = 'none';
 
         if (state.unreadPings[channel.name]) delete state.unreadPings[channel.name];
         if (state.unreadReplies[channel.name]) delete state.unreadReplies[channel.name];
@@ -2099,6 +2113,16 @@ async function selectChannel(channel) {
     }
     channelNameEl.appendChild(document.createTextNode(getChannelDisplayName(channel)));
 
+    const mainHeaderChannelName = document.getElementById('main-header-channel-name');
+    if (mainHeaderChannelName) {
+        mainHeaderChannelName.textContent = getChannelDisplayName(channel);
+    }
+
+    const mainMessagesHeader = document.getElementById('main-messages-header');
+    if (mainMessagesHeader) {
+        mainMessagesHeader.style.display = '';
+    }
+
     if (state.unreadPings[channel.name]) delete state.unreadPings[channel.name];
 
     Object.keys(state.pendingMessageFetchesByChannel).forEach(key => {
@@ -2129,11 +2153,13 @@ async function selectChannel(channel) {
     const targetItem = Array.from(document.querySelectorAll('.channel-item')).find(el => el.querySelector('[data-channel-name]')?.textContent === channel.name);
     if (targetItem) targetItem.classList.add('active');
 
+    state._pendingChannelSwitch = channelKey;
     if (!state.messagesByServer[state.serverUrl]?.[channel.name]) {
         state.pendingMessageFetchesByChannel[channelKey] = true;
         wsSend({ cmd: 'messages_get', channel: channel.name }, state.serverUrl);
     } else {
         renderMessages();
+        state._pendingChannelSwitch = null;
     }
 
     renderMembers(channel);
@@ -2160,6 +2186,12 @@ function selectHomeChannel() {
     channelNameEl.appendChild(icon);
     channelNameEl.appendChild(document.createTextNode('Home'));
     if (window.lucide) window.lucide.createIcons({ root: channelNameEl });
+
+    const mainHeaderChannelName = document.getElementById('main-header-channel-name');
+    if (mainHeaderChannelName) mainHeaderChannelName.textContent = 'Home';
+
+    const mainMessagesHeader = document.getElementById('main-messages-header');
+    if (mainMessagesHeader) mainMessagesHeader.style.display = 'none';
 
     const serverChannelHeader = document.getElementById('server-channel-header');
     if (serverChannelHeader) serverChannelHeader.style.display = 'none';
@@ -2261,6 +2293,12 @@ function selectRelationshipsChannel() {
     channelNameEl.appendChild(document.createTextNode('Friends'));
     if (window.lucide) window.lucide.createIcons({ root: channelNameEl });
 
+    const mainHeaderChannelName = document.getElementById('main-header-channel-name');
+    if (mainHeaderChannelName) mainHeaderChannelName.textContent = 'Friends';
+
+    const mainMessagesHeader = document.getElementById('main-messages-header');
+    if (mainMessagesHeader) mainMessagesHeader.style.display = 'none';
+
     const serverChannelHeader = document.getElementById('server-channel-header');
     if (serverChannelHeader) serverChannelHeader.style.display = 'none';
 
@@ -2352,14 +2390,25 @@ function getAvatar(username, size = null) {
     const defaultAvatar = 'https://avatars.rotur.dev/originChats';
     const avatarUrl = `https://avatars.rotur.dev/${username}`;
 
-    if (state._avatarCache[username]) { img.src = state._avatarCache[username]; return img; }
+    if (state._avatarCache[username]) {
+        img.src = state._avatarCache[username];
+        return img;
+    }
 
-    img.src = avatarUrl;
-    img.onload = () => {
-        if (!state._avatarLoading[username]) state._avatarLoading[username] = fetchAvatarBase64(username);
-        state._avatarLoading[username].then(dataUri => { state._avatarCache[username] = dataUri; img.src = dataUri; }).catch(() => { });
+    const tempImg = new Image()
+
+    tempImg.src = avatarUrl;
+    tempImg.onload = () => {
+        if (!state._avatarLoading[username])
+            state._avatarLoading[username] = fetchAvatarBase64(username);
+        state._avatarLoading[username]
+            .then(dataUri => {
+                state._avatarCache[username] = dataUri;
+                img.src = dataUri;
+            })
+            .catch(() => { });
     };
-    img.onerror = () => { img.src = defaultAvatar; };
+    tempImg.onerror = () => { img.src = defaultAvatar; };
     return img;
 }
 
@@ -2402,22 +2451,41 @@ state._olderStart = {};
 state._olderCooldown = {};
 
 function scrollToBottom() {
-    const container = document.getElementById('messages');
-    if (!container) return;
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            container.scrollTop = container.scrollHeight;
-            updateScrollButton();
-        });
-    });
+    if (!state.currentChannel) return;
+    const channelKey = `${state.serverUrl}:${state.currentChannel.name}`;
+    const scroller = state.virtualScrollers?.[channelKey];
+    if (scroller) {
+        scroller.scrollToBottom();
+        state.autoScrollEnabled = true;
+    } else {
+        const messagesEl = document.getElementById('messages');
+        if (messagesEl) {
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+    }
+    updateScrollButton();
 }
 
 function updateScrollButton() {
     const scrollBtn = document.getElementById('scroll-to-bottom');
-    const container = document.getElementById('messages');
-    if (!scrollBtn || !container) return;
-    const isNearBottom = (container.scrollHeight - (container.scrollTop + container.clientHeight)) < 80;
+    if (!scrollBtn) return;
+
+    if (!state.currentChannel) {
+        scrollBtn.style.display = 'none';
+        return;
+    }
+
+    const channelKey = `${state.serverUrl}:${state.currentChannel.name}`;
+    const scroller = state.virtualScrollers?.[channelKey];
+
+    if (!scroller) {
+        scrollBtn.style.display = 'none';
+        return;
+    }
+
+    const isNearBottom = scroller.isNearBottom(80);
     scrollBtn.style.display = isNearBottom ? 'none' : 'flex';
+    state.autoScrollEnabled = isNearBottom;
 }
 
 function attachImageScrollHandler(img) {
@@ -2832,7 +2900,21 @@ function appendMessage(msg) {
         if (messageText) window.twemoji.parse(messageText);
     }
 
+const channelKey = `${state.serverUrl}:${state.currentChannel.name}`;
+  const scroller = state.virtualScrollers?.[channelKey];
+  const isNearBottom = scroller ? scroller.isNearBottom(80) : isElementNearBottom(container, 80);
+  if (isNearBottom) {
+    state.autoScrollEnabled = true;
+  }
+  if (state.autoScrollEnabled) {
     scrollToBottom();
+  }
+  updateScrollButton();
+}
+
+function isElementNearBottom(el, threshold = 80) {
+    if (!el) return true;
+    return (el.scrollHeight - (el.scrollTop + el.clientHeight)) < threshold;
 }
 
 function updateMessageContent(msgId, newContent) {
@@ -3218,23 +3300,34 @@ function watchForStopTyping() {
 }
 
 function setupInfiniteScroll() {
-    const container = document.getElementById('messages');
-    if (!container) return;
-    container.addEventListener('scroll', () => {
-        if (state._olderLoading || !state.currentChannel) return;
-        const channelKey = `${state.serverUrl}:${state.currentChannel.name}`;
-        if (state.pendingMessageFetchesByChannel[channelKey]) return;
-        if (container.scrollTop <= 10) {
-            const ch = state.currentChannel.name;
-            const start = (state.messages[ch] || []).length || 0;
-            const lastSent = state._olderCooldown[ch] || 0;
-            if (Date.now() - lastSent < 750) return;
-            state._olderLoading = true;
-            state._loadingOlder[ch] = { start, limit: 100 };
-            state._olderCooldown[ch] = Date.now();
-            wsSend({ cmd: 'messages_get', channel: ch, start, limit: 100 }, state.serverUrl);
-        }
-    });
+  const container = document.getElementById('messages');
+  if (!container) return;
+  container.addEventListener('scroll', (e) => {
+    if (!state.currentChannel) return;
+    const channelKey = `${state.serverUrl}:${state.currentChannel.name}`;
+    const scroller = state.virtualScrollers?.[channelKey];
+    const scrollEl = scroller?.scrollEl || container.querySelector('.virtual-scroll-viewport') || container;
+
+    state.scrollPositionsByChannel[channelKey] = scrollEl.scrollTop;
+
+    const isNearBottom = scroller ? scroller.isNearBottom(80) : isElementNearBottom(scrollEl, 80);
+    state.autoScrollEnabled = isNearBottom;
+    updateScrollButton();
+
+    if (state._olderLoading) return;
+    if (state.pendingMessageFetchesByChannel[channelKey]) return;
+    if (scrollEl.scrollTop <= 10) {
+      const ch = state.currentChannel.name;
+      const messages = state.messagesByServer[state.serverUrl]?.[ch] || [];
+      const start = messages.length || 0;
+      const lastSent = state._olderCooldown[ch] || 0;
+      if (Date.now() - lastSent < 750) return;
+      state._olderLoading = true;
+      state._loadingOlder[ch] = { start, limit: 20 };
+      state._olderCooldown[ch] = Date.now();
+      wsSend({ cmd: 'messages_get', channel: ch, start, limit: 20 }, state.serverUrl);
+    }
+  });
 }
 
 function sendTyping() {
@@ -4462,33 +4555,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const updateScrollButton = () => {
             const isNearBottom = (messagesEl.scrollHeight - (messagesEl.scrollTop + messagesEl.clientHeight)) < 80;
             scrollBtn.style.display = isNearBottom ? 'none' : 'flex';
+        };
+
+        messagesEl.addEventListener('scroll', updateScrollButton);
+
+        scrollBtn.addEventListener('click', () => {
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        });
+
+        const observer = new MutationObserver(updateScrollButton);
+        observer.observe(messagesEl, { childList: true, subtree: true });
+    }
+});
+
+window.openMessageSearch = function () {
+    if (!window.MembersContent) return;
+    if (window.state?.serverUrl === 'dms.mistium.com' && (!window.state?.currentChannel || ['home', 'relationships', 'notes', 'new_message'].includes(window.state.currentChannel.name))) {
+        return;
+    }
+    if (!window.state?.currentChannel) return;
+    window.MembersContent.render({ type: 'search', channel: window.state.currentChannel });
 };
 
-messagesEl.addEventListener('scroll', updateScrollButton);
-
-scrollBtn.addEventListener('click', () => {
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-});
-
-const observer = new MutationObserver(updateScrollButton);
-observer.observe(messagesEl, { childList: true, subtree: true });
-}
-
-function openMessageSearch() {
-if (!window.MembersContent) return;
-if (state.serverUrl === 'dms.mistium.com' && (!state.currentChannel || ['home', 'relationships', 'notes', 'new_message'].includes(state.currentChannel.name))) {
-return;
-}
-if (!state.currentChannel) return;
-window.MembersContent.render({ type: 'search', channel: state.currentChannel });
-}
-
-function openPinnedMessages() {
-if (!window.MembersContent) return;
-if (state.serverUrl === 'dms.mistium.com' && (!state.currentChannel || ['home', 'relationships', 'notes', 'new_message'].includes(state.currentChannel.name))) {
-return;
-}
-if (!state.currentChannel) return;
-window.MembersContent.render({ type: 'pinned', channel: state.currentChannel });
-}
-});
+window.openPinnedMessages = function () {
+    if (!window.MembersContent) return;
+    if (window.state?.serverUrl === 'dms.mistium.com' && (!window.state?.currentChannel || ['home', 'relationships', 'notes', 'new_message'].includes(window.state.currentChannel.name))) {
+        return;
+    }
+    if (!window.state?.currentChannel) return;
+    window.MembersContent.render({ type: 'pinned', channel: window.state.currentChannel });
+};

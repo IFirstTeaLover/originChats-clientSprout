@@ -32,19 +32,30 @@
 
 <body>
     <div id="chat-screen" class="active">
-        <div class="header">
-            <div class="menu-btn" onclick="toggleMenu()">
-                <i data-lucide="menu"></i>
-            </div>
-            <div class="server-info">
-                <div class="header-text">
-                    <div id="server-name" class="server-name">
-                        <span>Direct Messages</span>
-                    </div>
-                    <div id="channel-name" class="channel-name">#home</div>
+<div class="header">
+        <div class="menu-btn" onclick="toggleMenu()">
+            <i data-lucide="menu"></i>
+        </div>
+        <div class="server-info">
+            <div class="header-text">
+                <div id="server-name" class="server-name">
+                    <span>Direct Messages</span>
                 </div>
+                <div id="channel-name" class="channel-name">#home</div>
             </div>
         </div>
+        <div class="header-actions">
+            <button class="header-btn" onclick="openMessageSearch()" title="Search Messages">
+                <i data-lucide="search"></i>
+            </button>
+            <button class="header-btn" onclick="openPinnedMessages()" title="Pinned Messages">
+                <i data-lucide="pin"></i>
+            </button>
+            <button class="header-btn" onclick="toggleMembersList()" title="Member List">
+                <i data-lucide="users"></i>
+            </button>
+        </div>
+    </div>
         <div class="overlay" onclick="closeMenu()"></div>
         <div class="content">
             <div class="guild-sidebar">
@@ -74,184 +85,197 @@
                     <div class="channel-header-info">
                         <div class="channel-header-name" id="channel-header-name">Server Name</div>
                     </div>
-                    <div class="channel-header-actions">
-                        <button class="channel-action-btn" id="channel-search-btn" onclick="openMessageSearch()"
-                            title="Search Messages">
-                            <i data-lucide="search"></i>
-                        </button>
-                        <button class="channel-action-btn" id="channel-pinned-btn" onclick="openPinnedMessages()"
-                            title="Pinned Messages">
-                            <i data-lucide="pin"></i>
-                        </button>
-                        <button class="server-settings-btn" id="server-settings-btn" onclick="openServerSettings()"
-                            title="Server Settings">
-                            <i data-lucide="settings-2"></i>
-                        </button>
-                    </div>
+                    <button class="server-settings-btn" id="server-settings-btn" onclick="openServerSettings()"
+                        title="Server Settings">
+                        <i data-lucide="settings-2"></i>
+                    </button>
                 </div>
                 <div class="channels-list" id="channels-list"></div>
             </div>
-            <div class="messages-container">
-                <div id="error-banner" class="error-banner">
-                    <span id="error-text"></span>
-                    <button class="error-close" onclick="hideErrorBanner()">
-                        <i data-lucide="x" style="width: 16px; height: 16px;"></i>
-                    </button>
-                </div>
-                <div id="dm-friends-container" style="display: none;" class="dm-friends-container"></div>
-                <div id="messages" class="messages"></div>
-                <button id="scroll-to-bottom" class="scroll-to-bottom-btn" style="display: none;">
-                    <i data-lucide="arrow-down"></i>
-                </button>
-                <div id="typing" class="typing"></div>
-                <div class="input-area">
-                    <div id="reply-bar" class="reply-bar">
-                        <div class="reply-bar-content">
-                            <i data-lucide="corner-up-left" class="reply-bar-icon" id="reply-bar-icon"></i>
-                            <div class="reply-bar-info">
-                                <span class="reply-bar-label" id="reply-bar-label">Replying to</span>
-                                <span class="reply-bar-text" id="reply-text">
-                                    <span class="username">user</span>
-                                </span>
-                                <div class="reply-bar-preview" id="reply-preview"></div>
-                            </div>
-                        </div>
-                        <span class="close-reply"
-                            onclick="if(window.editingMessage) window.cancelEdit(); else cancelReply();" title="Cancel">
-                            <i data-lucide="x"></i>
-                        </span>
+            <div class="main-content-wrapper">
+                <div class="main-messages-header" id="main-messages-header">
+                    <div class="main-header-left">
+                        <i data-lucide="hash" class="main-header-icon"></i>
+                        <span class="main-header-channel-name" id="main-header-channel-name">general</span>
                     </div>
-
-
-
-                    <div class="input-wrapper">
-                        <button id="upload-btn" class="icon-btn" onclick="triggerImageUpload()" title="Attach">
-                            <i data-lucide="plus"></i>
+                    <div class="main-header-actions">
+                        <button class="main-header-btn" id="main-search-btn" onclick="openMessageSearch()"
+                            title="Search Messages">
+                            <i data-lucide="search"></i>
                         </button>
-                        <textarea id="message-input" placeholder="Type a message..." rows="1"></textarea>
-                        <div class="input-toolbar-right">
-                            <button id="emoji-btn" class="icon-btn" onclick="toggleEmojiPicker(event)">
-                                <i data-lucide="smile"></i>
+                        <button class="main-header-btn" id="main-pinned-btn" onclick="openPinnedMessages()"
+                            title="Pinned Messages">
+                            <i data-lucide="pin"></i>
+                        </button>
+                        <button class="main-header-btn" onclick="toggleMembersList()" title="Member List">
+                            <i data-lucide="users"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="main-content-area">
+                    <div class="messages-container">
+                        <div id="error-banner" class="error-banner">
+                            <span id="error-text"></span>
+                            <button class="error-close" onclick="hideErrorBanner()">
+                                <i data-lucide="x" style="width: 16px; height: 16px;"></i>
                             </button>
                         </div>
-                        <button class="send-btn" onclick="sendMessage()">
-                            <i data-lucide="send"></i>
+                        <div id="dm-friends-container" style="display: none;" class="dm-friends-container"></div>
+                        <div id="messages" class="messages"></div>
+                        <button id="scroll-to-bottom" class="scroll-to-bottom-btn" style="display: none;">
+                            <i data-lucide="arrow-down"></i>
                         </button>
-                        <div id="mention-popup" class="mention-popup">
-                            <ul class="mention-list" id="mention-list"></ul>
+                        <div id="typing" class="typing"></div>
+                        <div class="input-area">
+                            <div id="reply-bar" class="reply-bar">
+                                <div class="reply-bar-content">
+                                    <i data-lucide="corner-up-left" class="reply-bar-icon" id="reply-bar-icon"></i>
+                                    <div class="reply-bar-info">
+                                        <span class="reply-bar-label" id="reply-bar-label">Replying to</span>
+                                        <span class="reply-bar-text" id="reply-text">
+                                            <span class="username">user</span>
+                                        </span>
+                                        <div class="reply-bar-preview" id="reply-preview"></div>
+                                    </div>
+                                </div>
+                                <span class="close-reply"
+                                    onclick="if(window.editingMessage) window.cancelEdit(); else cancelReply();"
+                                    title="Cancel">
+                                    <i data-lucide="x"></i>
+                                </span>
+                            </div>
+
+
+
+                            <div class="input-wrapper">
+                                <button id="upload-btn" class="icon-btn" onclick="triggerImageUpload()" title="Attach">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                                <textarea id="message-input" placeholder="Type a message..." rows="1"></textarea>
+                                <div class="input-toolbar-right">
+                                    <button id="emoji-btn" class="icon-btn" onclick="toggleEmojiPicker(event)">
+                                        <i data-lucide="smile"></i>
+                                    </button>
+                                </div>
+                                <button class="send-btn" onclick="sendMessage()">
+                                    <i data-lucide="send"></i>
+                                </button>
+                                <div id="mention-popup" class="mention-popup">
+                                    <ul class="mention-list" id="mention-list"></ul>
+                                </div>
+                                <div id="emoji-popup" class="emoji-popup">
+                                    <ul class="emoji-list" id="emoji-list"></ul>
+                                </div>
+                                <div id="rate-limit-indicator" class="rate-limit-indicator">
+                                    <i data-lucide="clock"></i>
+                                    <span id="rate-limit-text">Rate limited</span>
+                                </div>
+                            </div>
                         </div>
-                        <div id="emoji-popup" class="emoji-popup">
-                            <ul class="emoji-list" id="emoji-list"></ul>
-                        </div>
-                        <div id="rate-limit-indicator" class="rate-limit-indicator">
-                            <i data-lucide="clock"></i>
-                            <span id="rate-limit-text">Rate limited</span>
-                        </div>
+
+                        <input type="file" id="image-upload-input" accept="image/*" multiple style="display: none;">
                     </div>
-                </div>
-
-                <input type="file" id="image-upload-input" accept="image/*" multiple style="display: none;">
-            </div>
-            <div id="members-list"></div>
-        </div>
-    </div>
-
-    <div id="voice-panel" class="voice-panel">
-        <div class="voice-panel-controls">
-            <button class="voice-control-btn" id="voice-mute-btn" onclick="voiceManager.toggleMute()">
-                <i data-lucide="mic" id="voice-mute-icon"></i>
-            </button>
-            <button class="voice-control-btn voice-leave-btn" onclick="voiceManager.leaveChannel()">
-                <i data-lucide="phone-off"></i>
-                Leave Call
-            </button>
-        </div>
-    </div>
-
-    <div id="context-menu" class="context-menu"></div>
-
-    <div id="discovery-modal" class="discovery-modal">
-        <div class="discovery-overlay" onclick="closeDiscoveryModal()"></div>
-        <div class="discovery-container">
-            <button class="discovery-close" onclick="closeDiscoveryModal()">
-                <i data-lucide="x"></i>
-            </button>
-            <div class="discovery-header">
-                <h2>Discover Servers</h2>
-                <p>Find communities to join</p>
-            </div>
-            <div class="discovery-content">
-                <div id="discovery-loading" class="discovery-loading">
-                    <div class="loading-spinner"></div>
-                    <p>Loading servers...</p>
-                </div>
-                <div id="discovery-error" class="discovery-error">
-                    <i data-lucide="alert-circle"></i>
-                    <p>Failed to load servers</p>
-                </div>
-                <div id="discovery-list" class="discovery-list"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="account-modal" class="account-modal">
-        <div class="account-overlay" onclick="closeAccountModal()"></div>
-        <div class="account-card">
-            <button class="account-close-btn" onclick="closeAccountModal()">
-                <i data-lucide="x"></i>
-            </button>
-            <div id="account-content">
-                <div class="account-loading">
-                    <div class="account-loading-spinner"></div>
-                    <div class="account-loading-text">Loading profile...</div>
+                    <div id="members-list"></div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <div id="dm-create-modal" class="dm-create-modal">
-        <div class="dm-create-overlay" onclick="closeDMCreateModal()"></div>
-        <div class="dm-create-container">
-            <button class="dm-create-close" onclick="closeDMCreateModal()">
-                <i data-lucide="x"></i>
-            </button>
-            <div class="dm-create-header">
-                <h2>Start Conversation</h2>
-            </div>
-            <div class="dm-create-tabs">
-                <button class="dm-create-tab active" data-tab="dm" onclick="switchDMCreateTab('dm')">
-                    <i data-lucide="user"></i>
-                    Direct Message
+        <div id="voice-panel" class="voice-panel">
+            <div class="voice-panel-controls">
+                <button class="voice-control-btn" id="voice-mute-btn" onclick="voiceManager.toggleMute()">
+                    <i data-lucide="mic" id="voice-mute-icon"></i>
                 </button>
-                <button class="dm-create-tab" data-tab="group" onclick="switchDMCreateTab('group')">
-                    <i data-lucide="users"></i>
-                    Group
+                <button class="voice-control-btn voice-leave-btn" onclick="voiceManager.leaveChannel()">
+                    <i data-lucide="phone-off"></i>
+                    Leave Call
                 </button>
             </div>
-            <div class="dm-create-content">
-                <div id="dm-create-dm-panel" class="dm-create-panel active">
-                    <div class="form-group">
-                        <label for="dm-username">Username</label>
-                        <input type="text" id="dm-username" placeholder="Enter username..." autocomplete="off">
-                    </div>
-                    <button class="btn btn-primary" onclick="createDirectMessage()">Start DM</button>
+        </div>
+
+        <div id="context-menu" class="context-menu"></div>
+
+        <div id="discovery-modal" class="discovery-modal">
+            <div class="discovery-overlay" onclick="closeDiscoveryModal()"></div>
+            <div class="discovery-container">
+                <button class="discovery-close" onclick="closeDiscoveryModal()">
+                    <i data-lucide="x"></i>
+                </button>
+                <div class="discovery-header">
+                    <h2>Discover Servers</h2>
+                    <p>Find communities to join</p>
                 </div>
-                <div id="dm-create-group-panel" class="dm-create-panel">
-                    <div class="form-group">
-                        <label for="group-name">Group Name</label>
-                        <input type="text" id="group-name" placeholder="Enter group name..." autocomplete="off">
+                <div class="discovery-content">
+                    <div id="discovery-loading" class="discovery-loading">
+                        <div class="loading-spinner"></div>
+                        <p>Loading servers...</p>
                     </div>
-                    <div class="form-group">
-                        <label for="group-members">Members (comma-separated)</label>
-                        <input type="text" id="group-members" placeholder="username1, username2, ..."
-                            autocomplete="off">
-                        <small>Enter usernames separated by commas</small>
+                    <div id="discovery-error" class="discovery-error">
+                        <i data-lucide="alert-circle"></i>
+                        <p>Failed to load servers</p>
                     </div>
-                    <button class="btn btn-primary" onclick="createGroup()">Create Group</button>
+                    <div id="discovery-list" class="discovery-list"></div>
                 </div>
             </div>
         </div>
-    </div>
+
+        <div id="account-modal" class="account-modal">
+            <div class="account-overlay" onclick="closeAccountModal()"></div>
+            <div class="account-card">
+                <button class="account-close-btn" onclick="closeAccountModal()">
+                    <i data-lucide="x"></i>
+                </button>
+                <div id="account-content">
+                    <div class="account-loading">
+                        <div class="account-loading-spinner"></div>
+                        <div class="account-loading-text">Loading profile...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="dm-create-modal" class="dm-create-modal">
+            <div class="dm-create-overlay" onclick="closeDMCreateModal()"></div>
+            <div class="dm-create-container">
+                <button class="dm-create-close" onclick="closeDMCreateModal()">
+                    <i data-lucide="x"></i>
+                </button>
+                <div class="dm-create-header">
+                    <h2>Start Conversation</h2>
+                </div>
+                <div class="dm-create-tabs">
+                    <button class="dm-create-tab active" data-tab="dm" onclick="switchDMCreateTab('dm')">
+                        <i data-lucide="user"></i>
+                        Direct Message
+                    </button>
+                    <button class="dm-create-tab" data-tab="group" onclick="switchDMCreateTab('group')">
+                        <i data-lucide="users"></i>
+                        Group
+                    </button>
+                </div>
+                <div class="dm-create-content">
+                    <div id="dm-create-dm-panel" class="dm-create-panel active">
+                        <div class="form-group">
+                            <label for="dm-username">Username</label>
+                            <input type="text" id="dm-username" placeholder="Enter username..." autocomplete="off">
+                        </div>
+                        <button class="btn btn-primary" onclick="createDirectMessage()">Start DM</button>
+                    </div>
+                    <div id="dm-create-group-panel" class="dm-create-panel">
+                        <div class="form-group">
+                            <label for="group-name">Group Name</label>
+                            <input type="text" id="group-name" placeholder="Enter group name..." autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="group-members">Members (comma-separated)</label>
+                            <input type="text" id="group-members" placeholder="username1, username2, ..."
+                                autocomplete="off">
+                            <small>Enter usernames separated by commas</small>
+                        </div>
+                        <button class="btn btn-primary" onclick="createGroup()">Create Group</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="settings-modal" class="modal-overlay settings-modal" onclick="if(event.target === this) closeSettings()"
@@ -320,7 +344,8 @@
                                     <h3><i data-lucide="mic"></i>Microphone Sensitivity</h3>
                                 </div>
                                 <div class="setting-card-body">
-                                    <p class="setting-hint">Adjust when your microphone activates. Lower values make it
+                                    <p class="setting-hint">Adjust when your microphone activates. Lower values make
+                                        it
                                         more
                                         sensitive (activates on quieter sounds).</p>
                                     <div style="width: 100%; margin-top: 12px;">
@@ -962,7 +987,7 @@
             defer></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js" defer></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js" defer></script>
-        <script src="https://cdn.jsdelivr.net/npm/emoji-regex@10/index.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/clusterize.js@1.0.0/clusterize.min.js"></script>
 </body>
 
 </html>
