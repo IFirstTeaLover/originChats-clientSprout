@@ -109,42 +109,6 @@ function createGuildWarningIcon() {
 }
 
 /**
- * Attach a standard onerror fallback to an <img> that replaces it with a link.
- */
-function attachImageErrorFallback(img, url) {
-    img.onerror = () => {
-        const link = document.createElement('a');
-        link.href = url;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = url;
-        link.className = 'failed-image-link';
-        const wrapper = img.closest('.chat-image-wrapper');
-        if (wrapper) {
-            wrapper.replaceWith(link);
-        } else if (img.parentNode) {
-            img.parentNode.replaceChild(link, img);
-        }
-    };
-
-    img.style.cursor = 'zoom-in';
-
-    const handleImageClick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const imageUrl = img.dataset.imageUrl || url;
-        if (window.openImageModal) window.openImageModal(imageUrl);
-    };
-
-    img.addEventListener('click', handleImageClick);
-
-    const parentLink = img.closest('a[href]');
-    if (parentLink) {
-        parentLink.addEventListener('click', handleImageClick);
-    }
-}
-
-/**
  * Return the blocking action string for the current blocked-messages mode.
  * Replaces shouldHideBlockedMessage / shouldDimBlockedMessage / shouldCollapseBlockedMessage.
  * @returns {'hide'|'dim'|'collapse'}
@@ -1908,12 +1872,16 @@ async function handleMessage(msg, serverUrl) {
             break;
         }
 
-        case 'message_delete': {
-            if (!state.messagesByServer[serverUrl]?.[msg.channel]) break;
-            state.messagesByServer[serverUrl][msg.channel] = state.messagesByServer[serverUrl][msg.channel].filter(m => m.id !== msg.id);
-            if (state.serverUrl === serverUrl && msg.channel === state.currentChannel?.name) renderMessages();
-            break;
-        }
+case 'message_delete': {
+    if (!state.messagesByServer[serverUrl]?.[msg.channel]) break;
+    state.messagesByServer[serverUrl][msg.channel] = state.messagesByServer[serverUrl][msg.channel].filter(m => m.id !== msg.id);
+    
+    if (state.serverUrl === serverUrl && msg.channel === state.currentChannel?.name) {
+      const messageEl = document.querySelector(`[data-msg-id="${msg.id}"]`);
+      if (messageEl) messageEl.remove();
+    }
+    break;
+  }
 
         case 'message_pin':
         case 'message_unpin': {
@@ -2857,8 +2825,6 @@ function makeMessageElement(msg, isSameUserRecent, options = {}) {
 
     groupContent.appendChild(msgText);
 
-    msgText.querySelectorAll('.message-image').forEach(img => attachImageErrorFallback(img, img.src || img.dataset.imageUrl));
-
     if (context === 'chat') {
         window.renderReactions(msg, groupContent);
         setupMessageSwipe(wrapper, msg);
@@ -3034,13 +3000,6 @@ function updateMessageContent(msgId, newContent) {
     const embedLinks = [];
     msgText.innerHTML = parseMsg(msg, embedLinks);
 
-    msgText.querySelectorAll('.message-image').forEach(img => {
-        if (img.dataset.imageUrl) {
-            attachImageErrorFallback(img, img.dataset.imageUrl || img.src);
-            img.loading = 'lazy';
-        }
-    });
-
     if (embedLinks.length === 1 && isTenorOnlyMessage(embedLinks, msg.content)) {
         msgText.style.display = 'none';
     } else {
@@ -3140,7 +3099,6 @@ function revealBlockedMessage(wrapper, msg) {
     msgText.innerHTML = parseMsg(msg, embedLinks);
     groupContent.appendChild(msgText);
 
-    msgText.querySelectorAll('.message-image').forEach(img => attachImageErrorFallback(img, img.src || img.dataset.imageUrl));
     msgText.querySelectorAll("pre code").forEach(block => {
         try {
             const code = block.textContent;

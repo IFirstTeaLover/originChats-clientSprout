@@ -959,34 +959,45 @@
                 </div>
             </div>
         </div>
+    </div>
+    <div id="image-modal" class="image-modal" onclick="if(event.target === this) closeImageModal()">
+        <div class="image-modal-content">
+            <button class="modal-close-btn" onclick="closeImageModal()">
+                <i data-lucide="x"></i>
+            </button>
+            <img id="modal-image" src="" alt="Preview">
+            <button id="modal-fav-btn" class="modal-fav-btn" onclick="toggleModalFavorite()">
+                <i data-lucide="star"></i>
+            </button>
+        </div>
+    </div>
 
-        <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" defer></script>
-        <script src="https://unpkg.com/lucide@latest" defer></script>
-        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.3.0/dist/purify.min.js" defer></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" defer></script>
+    <script src="https://unpkg.com/lucide@latest" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.3.0/dist/purify.min.js" defer></script>
 
-        <!-- App modules -->
-        <script src="originFSKit.js" defer></script>
-        <script src="utils.js" defer></script>
-        <script src="embeds.js" defer></script>
-        <script src="markdown.js" defer></script>
-        <script src="interactions.js" defer></script>
-        <script src="uploads.js" defer></script>
-        <script src="notes-channel.js" defer></script>
-        <script src="channels.js" defer></script>
-        <script src="voice.js" defer></script>
-        <script src="members-content.js" defer></script>
-        <script src="contextMenu.js" defer></script>
-        <script src="guilds.js" defer></script>
-        <script src="script.js" defer></script>
-        <script src="serverSettings.js" defer></script>
+    <!-- App modules -->
+    <script src="originFSKit.js" defer></script>
+    <script src="utils.js" defer></script>
+    <script src="embeds.js" defer></script>
+    <script src="markdown.js" defer></script>
+    <script src="interactions.js" defer></script>
+    <script src="uploads.js" defer></script>
+    <script src="notes-channel.js" defer></script>
+    <script src="channels.js" defer></script>
+    <script src="voice.js" defer></script>
+    <script src="members-content.js" defer></script>
+    <script src="contextMenu.js" defer></script>
+    <script src="guilds.js" defer></script>
+    <script src="script.js" defer></script>
+    <script src="serverSettings.js" defer></script>
 
-        <!-- Highlight.js with auto-detection -->
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"
-            defer></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js" defer></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js" defer></script>
-        <script src="https://cdn.jsdelivr.net/npm/clusterize.js@1.0.0/clusterize.min.js"></script>
+    <!-- Highlight.js with auto-detection -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/clusterize.js@1.0.0/clusterize.min.js"></script>
 </body>
 
 </html>

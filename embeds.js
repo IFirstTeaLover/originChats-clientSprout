@@ -80,11 +80,6 @@ async function createEmbed(url) {
         case 'github_commit': return await createGitHubCommitEmbed(embedInfo.owner, embedInfo.repo, embedInfo.sha, url);
         case 'video':
         case 'image': return null;
-        default:
-            if (url.startsWith('data:') || url.startsWith('blob:')) {
-                if (await isImageUrl(url) === true) return createImageEmbed(url);
-            }
-            return null;
     }
 }
 
@@ -149,23 +144,23 @@ async function createTenorEmbed(tenorId, originalUrl) {
         link.rel = 'noopener noreferrer';
         link.onclick = (e) => { e.preventDefault(); if (window.openImageModal) window.openImageModal(gifUrl); };
 
-  const img = document.createElement('img');
-  img.src = proxyImageUrl(gifUrl);
-  const altDiv = document.createElement('div');
-  altDiv.textContent = data[0].content_description || 'Tenor GIF';
-  img.alt = altDiv.innerHTML;
-  img.className = 'tenor-gif';
-  img.loading = 'lazy';
-  if (window.attachImageScrollHandler) window.attachImageScrollHandler(img);
-  img.onerror = () => {
-    const fallback = document.createElement('a');
-    fallback.href = originalUrl;
-    fallback.target = '_blank';
-    fallback.rel = 'noopener noreferrer';
-    fallback.textContent = originalUrl;
-    fallback.className = 'failed-image-link';
-    container.replaceWith(fallback);
-  };
+        const img = document.createElement('img');
+        img.src = proxyImageUrl(gifUrl);
+        const altDiv = document.createElement('div');
+        altDiv.textContent = data[0].content_description || 'Tenor GIF';
+        img.alt = altDiv.innerHTML;
+        img.className = 'tenor-gif';
+        img.loading = 'lazy';
+        if (window.attachImageScrollHandler) window.attachImageScrollHandler(img);
+        img.onerror = () => {
+            const fallback = document.createElement('a');
+            fallback.href = originalUrl;
+            fallback.target = '_blank';
+            fallback.rel = 'noopener noreferrer';
+            fallback.textContent = originalUrl;
+            fallback.className = 'failed-image-link';
+            container.replaceWith(fallback);
+        };
 
         link.appendChild(img);
         wrapper.appendChild(link);
@@ -200,46 +195,6 @@ function createVideoEmbed(url) {
         container.appendChild(link);
     };
     container.appendChild(video);
-    return container;
-}
-
-function createImageEmbed(url) {
-    const container = document.createElement('div');
-    container.className = 'embed-container image-embed';
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'chat-image-wrapper';
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.onclick = (e) => { e.preventDefault(); if (window.openImageModal) window.openImageModal(url); };
-
-  const img = document.createElement('img');
-  img.src = proxyImageUrl(url);
-  img.alt = 'Embedded image';
-  img.className = 'message-image';
-  img.loading = 'lazy';
-  if (window.attachImageScrollHandler) window.attachImageScrollHandler(img);
-  img.onerror = () => {
-    const fallback = document.createElement('a');
-    fallback.href = url;
-    fallback.target = '_blank';
-    fallback.rel = 'noopener noreferrer';
-    fallback.textContent = url;
-    fallback.className = 'failed-image-link';
-    container.replaceWith(fallback);
-  };
-
-    link.appendChild(img);
-    wrapper.appendChild(link);
-
-    const favBtn = createFavButton(url, url);
-    wrapper.appendChild(favBtn);
-    if (window.lucide) setTimeout(() => window.lucide.createIcons({ root: favBtn }), 0);
-
-    container.appendChild(wrapper);
     return container;
 }
 
@@ -417,14 +372,21 @@ function _processPotentialImageLink(link, groupContent) {
         const wrapper = document.createElement('div');
         wrapper.className = 'chat-image-wrapper';
 
-    const img = document.createElement('img');
-    img.src = proxyImageUrl(url);
-    img.alt = 'image';
-    img.className = 'message-image';
+        const img = document.createElement('img');
+        img.src = proxyImageUrl(url);
+        img.alt = 'image';
+        img.className = 'message-image';
+        img.dataset.imageUrl = url;
 
-    if (window.attachImageScrollHandler) window.attachImageScrollHandler(img);
+        img.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (window.openImageModal) window.openImageModal(img.dataset.imageUrl);
+        });
 
-    if (window.createFavButton) {
+        if (window.attachImageScrollHandler) window.attachImageScrollHandler(img);
+
+        if (window.createFavButton) {
             const favBtn = window.createFavButton(url, url);
             wrapper.appendChild(favBtn);
             if (window.lucide) setTimeout(() => window.lucide.createIcons({ root: favBtn }), 0);
@@ -433,7 +395,6 @@ function _processPotentialImageLink(link, groupContent) {
 
         link.textContent = '';
         link.appendChild(wrapper);
-        link.onclick = (e) => { e.preventDefault(); if (window.openImageModal) window.openImageModal(url); };
         link.classList.remove('potential-image');
     }).catch(err => {
         // Final fallback: manual HEAD check for video content-type

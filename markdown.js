@@ -97,26 +97,23 @@ function parseMarkdown(text, embedLinks) {
 
     return text;
 }
-
 function parseMsg(msg, embedLinks) {
     let text = msg.content;
+
+    text = escapeHtml(text);
     text = parseMarkdown(text, embedLinks);
-
-    if (typeof DOMPurify === 'undefined' || !DOMPurify.sanitize) {
-        console.error('DOMPurify not available - messages may not be sanitized properly');
-        return escapeHtml(text);
-    }
-
+    
     text = DOMPurify.sanitize(text, {
-        ALLOWED_TAGS: ['a', 'span', 'code', 'pre', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'br', 'img'],
-        ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'data-user', 'data-channel', 'data-image-url', 'src', 'alt', 'language', 'data-msg-id'],
-        ALLOW_DATA_ATTR: false,
-        FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'link', 'meta', 'title'],
-        FORBID_ATTR: ['on*', 'style', 'javascript:', 'data-', 'formaction'],
-        SAFE_FOR_JAVASCRIPT: true,
-        SANITIZE_DOM: true
+        ALLOWED_TAGS: [
+            'a','span','code','pre','strong','em','br','img'
+        ],
+        ALLOWED_ATTR: [
+            'href','target','rel','class',
+            'data-user','data-channel','data-msg-id',
+            'src','alt'
+        ],
+        KEEP_CONTENT: true
     });
-
     return text;
 }
 
