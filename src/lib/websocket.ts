@@ -1126,12 +1126,21 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
     case "voice_join": {
       const { voiceManager } = await import("../voice");
       voiceManager.onJoined(msg.channel, msg.participants || []);
-      // Seed voice_state for the channel from the participant list
-      _vcUpdateChannelState(
-        sUrl,
-        msg.channel,
-        () => (msg.participants || []) as VoiceUser[],
-      );
+      // Seed voice_state for the channel: server participant list + self at front
+      const selfUsername = currentUserByServer.value[sUrl]?.username;
+      _vcUpdateChannelState(sUrl, msg.channel, () => {
+        const serverList = (msg.participants || []) as VoiceUser[];
+        if (
+          selfUsername &&
+          !serverList.find((u) => u.username === selfUsername)
+        ) {
+          return [
+            { username: selfUsername, muted: voiceManager.isMuted },
+            ...serverList,
+          ];
+        }
+        return serverList;
+      });
       renderChannelsSignal.value++;
       break;
     }
@@ -1172,6 +1181,19 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
         ),
       );
       renderChannelsSignal.value++;
+      break;
+    }
+    case "voice_leave": {
+      // Server confirmed our leave — remove self from the channel sidebar.
+      // voiceManager._cleanup() was already called locally in leaveChannel(),
+      // but the sidebar voice_state needs updating here.
+      const myUsername = currentUserByServer.value[sUrl]?.username;
+      if (myUsername && msg.channel) {
+        _vcUpdateChannelState(sUrl, msg.channel, (prev) =>
+          prev.filter((u) => u.username !== myUsername),
+        );
+        renderChannelsSignal.value++;
+      }
       break;
     }
 

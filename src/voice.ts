@@ -1,5 +1,6 @@
 import Peer from "peerjs";
 import type { MediaConnection } from "peerjs";
+import { signal } from "@preact/signals";
 import { wsSend } from "./lib/websocket";
 import {
   serverUrl,
@@ -7,11 +8,9 @@ import {
   voiceVideoRes,
   voiceVideoFps,
 } from "./state";
-import {
-  renderVoiceSignal,
-  renderChannelsSignal,
-  showVoiceCallView,
-} from "./lib/ui-signals";
+import { showVoiceCallView } from "./lib/ui-signals";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface VoiceParticipant {
   username: string;
@@ -20,238 +19,268 @@ export interface VoiceParticipant {
   speaking: boolean;
 }
 
-export class VoiceManagerClass {
-  peer: Peer | null = null;
+/** The type of a video stream — used to label inbound calls via metadata. */
+type VideoKind = "screen" | "camera";
+
+export interface VoiceState {
+  currentChannel: string | null;
+  participants: VoiceParticipant[];
+  isMuted: boolean;
+  isSpeaking: boolean;
+  micDenied: boolean;
+  isScreenSharing: boolean;
+  isCameraOn: boolean;
+  /** peerId -> remote screen-share stream */
+  screenStreams: Record<string, MediaStream>;
+  /** peerId -> remote camera stream */
+  cameraStreams: Record<string, MediaStream>;
+  /** local screen-share stream for self-preview */
+  localScreenStream: MediaStream | null;
+  /** local camera stream for self-preview */
+  localCameraStream: MediaStream | null;
+}
+
+const DEFAULT_STATE: VoiceState = {
+  currentChannel: null,
+  participants: [],
+  isMuted: false,
+  isSpeaking: false,
+  micDenied: false,
+  isScreenSharing: false,
+  isCameraOn: false,
+  screenStreams: {},
+  cameraStreams: {},
+  localScreenStream: null,
+  localCameraStream: null,
+};
+
+/** Single observable snapshot of all voice state. Components subscribe to this. */
+export const voiceState = signal<VoiceState>({ ...DEFAULT_STATE });
+
+// ── Per-peer connection record ────────────────────────────────────────────────
+//
+// Inbound and outbound calls are tracked separately so that closing our own
+// outbound video call never accidentally closes (or overwrites) a remote peer's
+// inbound stream in the same slot.
+
+interface PeerConn {
+  // Outbound calls we initiated
+  outAudioCall: MediaConnection | null;
+  outScreenCall: MediaConnection | null;
+  outCameraCall: MediaConnection | null;
+
+  // Inbound calls the remote peer initiated (we answered)
+  inAudioCall: MediaConnection | null;
+  inScreenCall: MediaConnection | null;
+  inCameraCall: MediaConnection | null;
+
+  // Received streams (always from inbound calls)
+  audioStream: MediaStream | null;
+  screenStream: MediaStream | null;
+  cameraStream: MediaStream | null;
+}
+
+function emptyPeerConn(): PeerConn {
+  return {
+    outAudioCall: null,
+    outScreenCall: null,
+    outCameraCall: null,
+    inAudioCall: null,
+    inScreenCall: null,
+    inCameraCall: null,
+    audioStream: null,
+    screenStream: null,
+    cameraStream: null,
+  };
+}
+
+// ── Speaking detection ────────────────────────────────────────────────────────
+
+interface SpeakingDetector {
+  ctx: AudioContext;
+  frameId: number;
+}
+
+// ── Logging ───────────────────────────────────────────────────────────────────
+
+function vcWarn(...args: unknown[]): void {
+  console.warn("[Voice]", ...args);
+}
+
+// ── Voice Manager ─────────────────────────────────────────────────────────────
+
+class VoiceManager {
+  // PeerJS
+  private _peer: Peer | null = null;
   private _peerReady: Promise<Peer> | null = null;
 
-  calls: Record<string, MediaConnection> = {};
-  streams: Record<string, MediaStream> = {};
-  localStream: MediaStream | null = null;
+  // Local streams (each independently managed)
+  private _localAudioStream: MediaStream | null = null;
+  private _localScreenStream: MediaStream | null = null;
+  private _localCameraStream: MediaStream | null = null;
 
-  videoStream: MediaStream | null = null;
-  videoCalls: Record<string, MediaConnection> = {};
-  videoStreams: Record<string, MediaStream> = {};
+  // Per-peer connection records
+  private _peers = new Map<string, PeerConn>();
 
-  participants: VoiceParticipant[] = [];
-
-  currentChannel: string | null = null;
-  isMuted = false;
-  isSpeaking = false;
-  micDenied = false;
-
+  // Internal state
+  private _currentChannel: string | null = null;
   private _myUsername: string | null = null;
+  private _participants: VoiceParticipant[] = [];
+  private _isMuted = false;
+  private _isSpeaking = false;
+  private _micDenied = false;
 
-  private localAudioContext: AudioContext | null = null;
-  private localAnalyser: AnalyserNode | null = null;
-  private localAnimFrameId: number | null = null;
-  private remoteSpeakingDetectors: Map<
-    string,
-    { ctx: AudioContext; analyser: AnalyserNode; frameId: number }
-  > = new Map();
+  // Speaking detection
+  private _localDetector: SpeakingDetector | null = null;
+  private _remoteDetectors = new Map<string, SpeakingDetector>();
 
-  streamRes: number;
-  streamFps: number;
+  // ── Public read-only accessors ──────────────────────────────────────────────
 
-  micThreshold: number;
-
-  constructor() {
-    this.micThreshold = micThresholdSignal.value;
-    this.streamRes = voiceVideoRes.value;
-    this.streamFps = voiceVideoFps.value;
+  get currentChannel(): string | null {
+    return this._currentChannel;
+  }
+  get isMuted(): boolean {
+    return this._isMuted;
+  }
+  get isSpeaking(): boolean {
+    return this._isSpeaking;
+  }
+  get localStream(): MediaStream | null {
+    return this._localAudioStream;
   }
 
-  private initPeer(): Promise<Peer> {
-    if (this._peerReady && this.peer && !this.peer.destroyed) {
-      return this._peerReady;
-    }
-
-    this._peerReady = new Promise<Peer>((resolve, reject) => {
-      try {
-        const peer = new Peer({
-          debug: 0,
-          config: {
-            iceTransportPolicy: "relay",
-            iceServers: [
-              { urls: "stun:stun.l.google.com:19302" },
-              { urls: "stun:stun1.l.google.com:19302" },
-              {
-                urls: "turn:free.expressturn.com:3478",
-                username: "000000002088393795",
-                credential: "82ycGu9kC/rKWJvfFicKScjmtxw=",
-              },
-            ],
-          },
-        });
-
-        peer.on("open", () => {
-          this.peer = peer;
-          resolve(peer);
-        });
-
-        peer.on("error", (err: Error) => {
-          console.error("[Voice] PeerJS error:", err);
-          if (!this.peer) reject(err);
-        });
-
-        peer.on("call", (call: MediaConnection) => {
-          call.answer(this.localStream || new MediaStream());
-
-          call.on("stream", (stream: MediaStream) => {
-            if (stream.getVideoTracks().length > 0) {
-              this.videoCalls[call.peer] = call;
-              this.videoStreams[call.peer] = stream;
-              this._rerender();
-            } else {
-              this.calls[call.peer] = call;
-              this.streams[call.peer] = stream;
-              this._playStream(call.peer, stream);
-              this._setupRemoteSpeakingDetection(call.peer, stream);
-            }
-          });
-
-          call.on("close", () => {
-            delete this.videoStreams[call.peer];
-            delete this.videoCalls[call.peer];
-            this._detachPeer(call.peer);
-          });
-
-          call.on("error", () => {
-            this._detachPeer(call.peer);
-          });
-        });
-      } catch (error) {
-        console.error("[Voice] Failed to initialize PeerJS:", error);
-        reject(error);
-      }
-    });
-
-    return this._peerReady;
-  }
+  // ── Join / Leave ────────────────────────────────────────────────────────────
 
   async joinChannel(
     channelName: string,
     myUsername?: string,
   ): Promise<boolean> {
-    if (this.currentChannel === channelName) {
+    if (this._currentChannel === channelName) {
       showVoiceCallView.value = !showVoiceCallView.value;
       return true;
     }
 
-    if (this.currentChannel) {
+    if (this._currentChannel) {
       this.leaveChannel();
     }
 
-    if (myUsername) {
-      this._myUsername = myUsername;
-    }
+    if (myUsername) this._myUsername = myUsername;
 
-    this.micDenied = false;
+    // Acquire microphone
+    this._micDenied = false;
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({
+      this._localAudioStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: false,
       });
     } catch {
-      this.micDenied = true;
+      this._micDenied = true;
+      // Create a silent stream so PeerJS always has something to send
       try {
         const ctx = new AudioContext();
-        const dest = ctx.createMediaStreamDestination();
-        this.localStream = dest.stream;
+        this._localAudioStream = ctx.createMediaStreamDestination().stream;
       } catch {
-        this.localStream = new MediaStream();
+        this._localAudioStream = new MediaStream();
       }
     }
 
+    // Initialize PeerJS
     let peer: Peer;
     try {
-      peer = await this.initPeer();
-    } catch {
-      console.error("[Voice] Voice connection failed");
+      peer = await this._initPeer();
+    } catch (err) {
+      vcWarn("PeerJS initialization failed", err);
+      this._stopAudioStream();
       return false;
     }
 
-    const myPeerId = peer.id;
-    if (!myPeerId) {
-      console.error("[Voice] No peer ID");
+    if (!peer.id) {
+      vcWarn("No peer ID assigned");
+      this._stopAudioStream();
       return false;
     }
 
+    this._currentChannel = channelName;
+    this._isMuted = this._micDenied;
+
+    // Notify server — _currentChannel must be set first so onJoined() isn't
+    // dropped if the server responds synchronously before we continue.
     wsSend(
-      { cmd: "voice_join", channel: channelName, peer_id: myPeerId },
+      { cmd: "voice_join", channel: channelName, peer_id: peer.id },
       serverUrl.value,
     );
 
-    this.currentChannel = channelName;
-    this.isMuted = this.micDenied;
-
-    if (this.micDenied) {
-      this.localStream?.getAudioTracks().forEach((t) => {
+    // Show self immediately (don't wait for server response)
+    if (this._myUsername && peer.id) {
+      this._participants = [
+        {
+          username: this._myUsername,
+          peer_id: peer.id,
+          muted: this._isMuted,
+          speaking: false,
+        },
+      ];
+    }
+    if (this._micDenied) {
+      this._localAudioStream?.getAudioTracks().forEach((t) => {
         t.enabled = false;
       });
       wsSend({ cmd: "voice_mute" }, serverUrl.value);
     } else {
-      this._setupLocalSpeakingDetection();
+      this._startLocalSpeakingDetection();
     }
 
     showVoiceCallView.value = true;
-    this._rerender();
-
+    this._publish();
     return true;
   }
 
+  leaveChannel(): void {
+    if (!this._currentChannel) return;
+    wsSend({ cmd: "voice_leave" }, serverUrl.value);
+    this._cleanup();
+    showVoiceCallView.value = false;
+  }
+
+  // ── Server event handlers ───────────────────────────────────────────────────
+
   onJoined(channel: string, participants: VoiceParticipant[]): void {
-    if (this.currentChannel !== channel) return;
-    this.participants = (participants || []).map((p) => ({
+    if (this._currentChannel !== channel) return;
+
+    this._participants = (participants || []).map((p) => ({
       ...p,
       speaking: false,
     }));
 
-    for (const p of this.participants) {
-      if (!p.peer_id || this.calls[p.peer_id]) continue;
-      if (p.peer_id === this.peer?.id) continue;
-      if (!this.localStream) continue;
-      const call = this.peer!.call(p.peer_id, this.localStream);
-      if (call) this._attachAudioCall(call);
+    // Call all existing participants (audio + any active video streams)
+    for (const p of this._participants) {
+      if (!p.peer_id || p.peer_id === this._peer?.id) continue;
+      this._callPeerAudio(p.peer_id);
+      this._pushVideoStreams(p.peer_id);
     }
 
-    if (this.peer?.id) {
-      const myParticipant: VoiceParticipant = {
+    // Insert self at the front (server list does not include us)
+    const myPeerId = this._peer?.id;
+    if (myPeerId && !this._participants.find((p) => p.peer_id === myPeerId)) {
+      this._participants.unshift({
         username: this._myUsername || "You",
-        peer_id: this.peer.id,
-        muted: this.isMuted,
-        speaking: this.isSpeaking,
-      };
-      if (!this.participants.find((p) => p.peer_id === this.peer?.id)) {
-        this.participants.unshift(myParticipant);
-      }
+        peer_id: myPeerId,
+        muted: this._isMuted,
+        speaking: this._isSpeaking,
+      });
     }
 
-    this._rerender();
-  }
-
-  getAllParticipants(): VoiceParticipant[] {
-    return this.participants;
-  }
-
-  setMyUsername(username: string): void {
-    this._myUsername = username;
-    if (this.peer?.id) {
-      const me = this.participants.find((p) => p.peer_id === this.peer?.id);
-      if (me) {
-        me.username = username;
-      }
-    }
+    this._publish();
   }
 
   onUserJoined(
     channel: string,
     user: { username: string; peer_id: string; muted: boolean },
   ): void {
-    if (!this.currentChannel || this.currentChannel !== channel) return;
-    if (!user.peer_id) return;
+    if (this._currentChannel !== channel || !user.peer_id) return;
 
-    if (!this.participants.find((p) => p.peer_id === user.peer_id)) {
-      this.participants.push({
+    if (!this._participants.find((p) => p.peer_id === user.peer_id)) {
+      this._participants.push({
         username: user.username,
         peer_id: user.peer_id,
         muted: user.muted,
@@ -259,295 +288,685 @@ export class VoiceManagerClass {
       });
     }
 
-    if (!this.calls[user.peer_id] && this.localStream && this.peer) {
-      const call = this.peer.call(user.peer_id, this.localStream);
-      if (call) this._attachAudioCall(call);
-    }
-
-    if (this.videoStream && this.peer) {
-      const vcall = this.peer.call(user.peer_id, this.videoStream);
-      if (vcall) this.videoCalls[user.peer_id] = vcall;
-    }
-
-    this._rerender();
+    // Call the new joiner with audio + push any active video streams.
+    // miloclient always calls the new joiner from onUserJoined, so we must too
+    // for cross-client compatibility. The dedup logic in _callPeerAudio and
+    // _handleInboundCall guards against double-calling if they also call us.
+    this._callPeerAudio(user.peer_id);
+    this._pushVideoStreams(user.peer_id);
+    this._publish();
   }
 
   onUserLeft(channel: string, username: string): void {
-    if (!this.currentChannel || this.currentChannel !== channel) return;
-    const p = this.participants.find((p) => p.username === username);
-    if (p) this._detachPeer(p.peer_id);
-    this.participants = this.participants.filter(
-      (p) => p.username !== username,
+    if (this._currentChannel !== channel) return;
+
+    const p = this._participants.find((x) => x.username === username);
+    // Filter the participant list first so the subsequent _publish (inside
+    // _detachPeer) already reflects the final state — no transient flicker.
+    this._participants = this._participants.filter(
+      (x) => x.username !== username,
     );
-    this._rerender();
+    if (p?.peer_id) this._detachPeer(p.peer_id);
+    else this._publish(); // nothing to detach, still need a publish
   }
 
   onUserUpdated(
     channel: string,
     user: { username: string; peer_id?: string; muted: boolean },
   ): void {
-    if (!this.currentChannel || this.currentChannel !== channel) return;
-    // Match by peer_id first (more reliable), fall back to username
-    const p = this.participants.find(
-      (p) =>
-        (user.peer_id && p.peer_id === user.peer_id) ||
-        p.username === user.username,
+    if (this._currentChannel !== channel) return;
+
+    const p = this._participants.find(
+      (x) =>
+        (user.peer_id && x.peer_id === user.peer_id) ||
+        x.username === user.username,
     );
     if (p) {
       p.muted = user.muted;
-      // Keep username in sync in case our self-entry was stored as "You"
-      if (user.username && p.username === "You") {
-        p.username = user.username;
-      }
+      if (user.username && p.username === "You") p.username = user.username;
     }
-    this._rerender();
+    this._publish();
   }
 
+  // ── Controls ────────────────────────────────────────────────────────────────
+
   toggleMute(): void {
-    this.isMuted = !this.isMuted;
+    this._isMuted = !this._isMuted;
+    this._localAudioStream
+      ?.getAudioTracks()
+      .forEach((t) => (t.enabled = !this._isMuted));
 
-    if (this.localStream) {
-      this.localStream
-        .getAudioTracks()
-        .forEach((t) => (t.enabled = !this.isMuted));
+    const me = this._selfParticipant();
+    if (me) me.muted = this._isMuted;
+
+    if (
+      !wsSend(
+        { cmd: this._isMuted ? "voice_mute" : "voice_unmute" },
+        serverUrl.value,
+      )
+    ) {
+      vcWarn("Failed to send mute state — WebSocket not open");
     }
 
-    if (this.peer?.id) {
-      const me = this.participants.find((p) => p.peer_id === this.peer?.id);
-      if (me) {
-        me.muted = this.isMuted;
-      }
-    }
-
-    const sent = wsSend(
-      { cmd: this.isMuted ? "voice_mute" : "voice_unmute" },
-      serverUrl.value,
-    );
-    if (!sent) {
-      console.warn("[Voice] Failed to send mute state — WebSocket not open");
-    }
-    this._rerender();
+    this._publish();
   }
 
   async toggleScreenShare(): Promise<void> {
-    if (this.videoStream) {
-      this.videoStream.getTracks().forEach((t) => t.stop());
-      this.videoStream = null;
-      Object.values(this.videoCalls).forEach((c) => {
-        try {
-          c.close();
-        } catch {}
-      });
-      this.videoCalls = {};
-      this._rerender();
+    if (this._localScreenStream) {
+      this._stopScreenShare();
       return;
     }
 
-    const constraints = this._qualityConstraints();
+    const constraints = this._videoConstraints();
+    let stream: MediaStream | null = null;
+
     try {
-      this.videoStream = await navigator.mediaDevices.getDisplayMedia({
+      stream = await navigator.mediaDevices.getDisplayMedia({
         video: constraints,
         audio: true,
       });
     } catch {
-      try {
-        this.videoStream = await navigator.mediaDevices.getUserMedia({
-          video: constraints,
-          audio: false,
-        });
-      } catch {
-        console.error("[Voice] Could not get video");
-        return;
-      }
+      vcWarn("Screen share cancelled or denied");
+      return;
     }
 
-    const videoTrack = this.videoStream.getVideoTracks()[0];
+    this._localScreenStream = stream;
+
+    // Auto-cleanup when OS/browser ends the share
+    const videoTrack = stream.getVideoTracks()[0];
     if (videoTrack) {
-      videoTrack.onended = () => {
-        if (this.videoStream) this.toggleScreenShare();
-      };
+      videoTrack.addEventListener("ended", () => this._stopScreenShare(), {
+        once: true,
+      });
     }
 
-    for (const p of this.participants) {
-      if (!p.peer_id || !this.peer) continue;
-      if (p.peer_id === this.peer.id) continue;
-      const call = this.peer.call(p.peer_id, this.videoStream);
-      if (call) this.videoCalls[p.peer_id] = call;
-    }
-
-    this._rerender();
+    // Send to all remote peers
+    this._broadcastVideo("screen", stream);
+    this._publish();
   }
 
-  leaveChannel(): void {
-    wsSend({ cmd: "voice_leave" }, serverUrl.value);
-    this._cleanup();
-    this.currentChannel = null;
-    showVoiceCallView.value = false;
-    this._rerender();
+  async toggleCamera(): Promise<void> {
+    if (this._localCameraStream) {
+      this._stopCamera();
+      return;
+    }
+
+    const constraints = this._videoConstraints();
+    let stream: MediaStream | null = null;
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: constraints,
+        audio: false,
+      });
+    } catch {
+      vcWarn("Camera access denied or unavailable");
+      return;
+    }
+
+    this._localCameraStream = stream;
+
+    // Auto-cleanup if track ends externally
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.addEventListener("ended", () => this._stopCamera(), {
+        once: true,
+      });
+    }
+
+    // Send to all remote peers
+    this._broadcastVideo("camera", stream);
+    this._publish();
+  }
+
+  /** Re-acquire screen share with current quality settings. */
+  async restartScreenShare(): Promise<void> {
+    if (!this._localScreenStream) return;
+
+    // Tear down current
+    this._localScreenStream.getTracks().forEach((t) => t.stop());
+    this._localScreenStream = null;
+    this._closeVideoCalls("screen");
+
+    // Re-acquire
+    const constraints = this._videoConstraints();
+    try {
+      this._localScreenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: constraints,
+        audio: true,
+      });
+    } catch {
+      vcWarn("Could not restart screen share");
+      this._publish();
+      return;
+    }
+
+    const videoTrack = this._localScreenStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.addEventListener("ended", () => this._stopScreenShare(), {
+        once: true,
+      });
+    }
+
+    this._broadcastVideo("screen", this._localScreenStream);
+    this._publish();
+  }
+
+  /** Re-acquire camera with current quality settings. */
+  async restartCamera(): Promise<void> {
+    if (!this._localCameraStream) return;
+
+    this._localCameraStream.getTracks().forEach((t) => t.stop());
+    this._localCameraStream = null;
+    this._closeVideoCalls("camera");
+
+    const constraints = this._videoConstraints();
+    try {
+      this._localCameraStream = await navigator.mediaDevices.getUserMedia({
+        video: constraints,
+        audio: false,
+      });
+    } catch {
+      vcWarn("Could not restart camera");
+      this._publish();
+      return;
+    }
+
+    const videoTrack = this._localCameraStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.addEventListener("ended", () => this._stopCamera(), {
+        once: true,
+      });
+    }
+
+    this._broadcastVideo("camera", this._localCameraStream);
+    this._publish();
+  }
+
+  setMyUsername(username: string): void {
+    this._myUsername = username;
+    const me = this._selfParticipant();
+    if (me) me.username = username;
+    this._publish();
   }
 
   isInChannel(): boolean {
-    return this.currentChannel !== null;
+    return this._currentChannel !== null;
   }
 
   getMyPeerId(): string | null {
-    return this.peer?.id || null;
+    return this._peer?.id ?? null;
   }
 
-  private _attachAudioCall(call: MediaConnection): void {
-    this.calls[call.peer] = call;
+  // ── Private: stream lifecycle ───────────────────────────────────────────────
 
-    call.on("stream", (stream: MediaStream) => {
-      this.streams[call.peer] = stream;
-      this._playStream(call.peer, stream);
-      this._setupRemoteSpeakingDetection(call.peer, stream);
+  private _stopAudioStream(): void {
+    if (this._localAudioStream) {
+      this._localAudioStream.getTracks().forEach((t) => t.stop());
+      this._localAudioStream = null;
+    }
+  }
+
+  private _stopScreenShare(): void {
+    if (!this._localScreenStream) return;
+    this._localScreenStream.getTracks().forEach((t) => t.stop());
+    this._localScreenStream = null;
+    this._closeVideoCalls("screen");
+    this._publish();
+  }
+
+  private _stopCamera(): void {
+    if (!this._localCameraStream) return;
+    this._localCameraStream.getTracks().forEach((t) => t.stop());
+    this._localCameraStream = null;
+    this._closeVideoCalls("camera");
+    this._publish();
+  }
+
+  /** Close all OUTBOUND video calls of a specific kind. */
+  private _closeVideoCalls(kind: VideoKind): void {
+    const outKey = kind === "screen" ? "outScreenCall" : "outCameraCall";
+    for (const conn of this._peers.values()) {
+      if (conn[outKey]) {
+        try {
+          conn[outKey]!.close();
+        } catch {}
+        conn[outKey] = null;
+      }
+    }
+  }
+
+  /** Send a video stream to all remote peers. */
+  private _broadcastVideo(kind: VideoKind, stream: MediaStream): void {
+    if (!this._peer) return;
+    const myPeerId = this._peer.id;
+    for (const p of this._participants) {
+      if (!p.peer_id || p.peer_id === myPeerId) continue;
+      this._callPeerVideo(p.peer_id, kind, stream);
+    }
+  }
+
+  /** Push any active video streams (screen + camera) to a specific peer. */
+  private _pushVideoStreams(peerId: string): void {
+    if (this._localScreenStream) {
+      this._callPeerVideo(peerId, "screen", this._localScreenStream);
+    }
+    if (this._localCameraStream) {
+      this._callPeerVideo(peerId, "camera", this._localCameraStream);
+    }
+  }
+
+  // ── Private: PeerJS calls ───────────────────────────────────────────────────
+
+  private _callPeerAudio(peerId: string): void {
+    if (!this._peer || !this._localAudioStream) return;
+    const conn = this._getConn(peerId);
+    if (conn.outAudioCall) return; // already have an outbound audio call
+    const call = this._peer.call(peerId, this._localAudioStream, {
+      metadata: { kind: "audio" },
+    });
+    if (!call) return;
+    conn.outAudioCall = call;
+    this._onOutboundAudioStream(call);
+  }
+
+  private _callPeerVideo(
+    peerId: string,
+    kind: VideoKind,
+    stream: MediaStream,
+  ): void {
+    if (!this._peer) return;
+    const conn = this._getConn(peerId);
+    const outKey = kind === "screen" ? "outScreenCall" : "outCameraCall";
+
+    // Close any existing OUTBOUND call of this kind (never touch inbound slots)
+    if (conn[outKey]) {
+      try {
+        conn[outKey]!.close();
+      } catch {}
+      conn[outKey] = null;
+    }
+
+    const call = this._peer.call(peerId, stream, { metadata: { kind } });
+    if (!call) return;
+    conn[outKey] = call;
+
+    call.on("close", () => {
+      const c = this._peers.get(peerId);
+      if (c && c[outKey] === call) {
+        c[outKey] = null;
+      }
+    });
+    call.on("error", (err) => {
+      vcWarn(`Outbound ${kind} call error for ${peerId}:`, err);
+      const c = this._peers.get(peerId);
+      if (c && c[outKey] === call) {
+        c[outKey] = null;
+      }
+    });
+  }
+
+  private _onOutboundAudioStream(call: MediaConnection): void {
+    call.on("stream", (stream) => {
+      // The remote peer answered our audio call — play their audio.
+      // Guard against duplicate delivery: if we already have audio from their
+      // inbound call, don't restart the element/detector.
+      const conn = this._getConn(call.peer);
+      if (conn.audioStream) return; // already receiving audio via inbound call
+      conn.audioStream = stream;
+      this._playAudio(call.peer, stream);
+      this._startRemoteSpeakingDetection(call.peer, stream);
+    });
+    call.on("close", () => {
+      // Outbound audio call closed — clean up audio only, keep the peer entry
+      // and any video streams intact. A transient disconnect shouldn't wipe the
+      // entire peer.
+      const conn = this._peers.get(call.peer);
+      if (conn && conn.outAudioCall === call) {
+        conn.outAudioCall = null;
+        conn.audioStream = null;
+        document.getElementById("vcaudio-" + call.peer)?.remove();
+        this._stopRemoteSpeakingDetection(call.peer);
+        this._publish();
+      }
+    });
+    call.on("error", () => {
+      const conn = this._peers.get(call.peer);
+      if (conn && conn.outAudioCall === call) {
+        conn.outAudioCall = null;
+        conn.audioStream = null;
+        document.getElementById("vcaudio-" + call.peer)?.remove();
+        this._stopRemoteSpeakingDetection(call.peer);
+        this._publish();
+      }
+    });
+  }
+
+  // ── Private: PeerJS initialization ──────────────────────────────────────────
+
+  private _initPeer(): Promise<Peer> {
+    if (this._peer && !this._peer.destroyed && this._peerReady) {
+      return this._peerReady;
+    }
+
+    // Discard any stale promise
+    this._peerReady = null;
+
+    this._peerReady = new Promise<Peer>((resolve, reject) => {
+      try {
+        const peer = new Peer({
+          debug: 0,
+          config: {
+            iceServers: [
+              {
+                urls: "turn:free.expressturn.com:3478",
+                username: "000000002088393795",
+                credential: "82ycGu9kC/rKWJvfFicKScjmtxw=",
+              },
+            ],
+            iceTransportPolicy: "relay",
+          },
+        });
+
+        peer.on("open", () => {
+          this._peer = peer;
+          resolve(peer);
+        });
+
+        peer.on("error", (err) => {
+          vcWarn("PeerJS error:", err);
+          if (!this._peer) reject(err);
+        });
+
+        // Handle all inbound calls
+        peer.on("call", (call) => this._handleInboundCall(call));
+      } catch (err) {
+        vcWarn("Failed to create Peer:", err);
+        reject(err);
+      }
     });
 
-    call.on("close", () => this._detachPeer(call.peer));
-    call.on("error", () => this._detachPeer(call.peer));
+    return this._peerReady;
   }
 
-  private _playStream(peerId: string, stream: MediaStream): void {
-    let audio = document.getElementById(
-      "vcaudio-" + peerId,
-    ) as HTMLAudioElement | null;
-    if (!audio) {
-      audio = document.createElement("audio");
-      audio.id = "vcaudio-" + peerId;
-      audio.autoplay = true;
-      audio.style.display = "none";
-      document.body.appendChild(audio);
+  /**
+   * Inbound call handler. Uses `call.metadata.kind` to determine the stream
+   * type ("audio" | "screen" | "camera"). Falls back to track inspection
+   * for backwards compatibility with peers that don't send metadata.
+   */
+  private _handleInboundCall(call: MediaConnection): void {
+    if (!this._currentChannel) return;
+
+    // Determine the call kind upfront from metadata so we can answer correctly.
+    // Audio calls get our audio stream; video calls get an empty stream so the
+    // remote client's video-call stream handler doesn't receive our audio and
+    // misclassify it as a duplicate audio source.
+    const meta = (call as any).metadata;
+    const isVideoCall = meta?.kind === "screen" || meta?.kind === "camera";
+    call.answer(
+      isVideoCall
+        ? new MediaStream()
+        : (this._localAudioStream ?? new MediaStream()),
+    );
+
+    call.on("stream", (stream) => {
+      const kind: VideoKind | "audio" = this._resolveStreamKind(call, stream);
+      const conn = this._getConn(call.peer);
+
+      switch (kind) {
+        case "audio": {
+          conn.inAudioCall = call;
+          // Only use this inbound stream if we don't already have audio from
+          // the outbound call's stream event. Both sides calling each other
+          // (miloclient compatibility) means audio can arrive twice — first
+          // delivery wins.
+          if (!conn.audioStream) {
+            conn.audioStream = stream;
+            this._playAudio(call.peer, stream);
+            this._startRemoteSpeakingDetection(call.peer, stream);
+          }
+          break;
+        }
+        case "screen": {
+          conn.inScreenCall = call;
+          conn.screenStream = stream;
+          this._publish();
+          break;
+        }
+        case "camera": {
+          conn.inCameraCall = call;
+          conn.cameraStream = stream;
+          this._publish();
+          break;
+        }
+      }
+    });
+
+    call.on("close", () => {
+      const conn = this._peers.get(call.peer);
+      if (!conn) return;
+
+      // Match against inbound slots only — outbound slots are managed separately.
+      if (conn.inScreenCall === call) {
+        conn.inScreenCall = null;
+        conn.screenStream = null;
+        this._publish();
+      } else if (conn.inCameraCall === call) {
+        conn.inCameraCall = null;
+        conn.cameraStream = null;
+        this._publish();
+      } else if (conn.inAudioCall === call) {
+        // Inbound audio closed — clean up audio but keep peer in participant list.
+        conn.inAudioCall = null;
+        conn.audioStream = null;
+        document.getElementById("vcaudio-" + call.peer)?.remove();
+        this._stopRemoteSpeakingDetection(call.peer);
+        this._publish();
+      }
+      // Unknown/stale call — ignore.
+    });
+
+    call.on("error", (err) => {
+      vcWarn(`Inbound call error from ${call.peer}:`, err);
+      this._detachPeer(call.peer);
+    });
+  }
+
+  /**
+   * Determine the kind of stream from call metadata, falling back to track
+   * inspection for compatibility with older peers.
+   */
+  private _resolveStreamKind(
+    call: MediaConnection,
+    stream: MediaStream,
+  ): VideoKind | "audio" {
+    const meta = (call as any).metadata;
+    if (meta?.kind === "screen" || meta?.kind === "camera") return meta.kind;
+    if (meta?.kind === "audio") return "audio";
+
+    // Fallback: if it has video tracks, assume screen share (legacy behaviour)
+    if (stream.getVideoTracks().length > 0) return "screen";
+    return "audio";
+  }
+
+  // ── Private: audio playback ─────────────────────────────────────────────────
+
+  private _playAudio(peerId: string, stream: MediaStream): void {
+    const id = "vcaudio-" + peerId;
+    let el = document.getElementById(id) as HTMLAudioElement | null;
+    if (!el) {
+      el = document.createElement("audio");
+      el.id = id;
+      el.autoplay = true;
+      el.style.display = "none";
+      document.body.appendChild(el);
     }
-    audio.srcObject = stream;
+    el.srcObject = stream;
+  }
+
+  // ── Private: peer management ────────────────────────────────────────────────
+
+  private _getConn(peerId: string): PeerConn {
+    if (!this._peers.has(peerId)) {
+      this._peers.set(peerId, emptyPeerConn());
+    }
+    return this._peers.get(peerId)!;
+  }
+
+  private _selfParticipant(): VoiceParticipant | undefined {
+    return this._participants.find((p) => p.peer_id === this._peer?.id);
   }
 
   private _detachPeer(peerId: string): void {
-    if (this.calls[peerId]) {
+    const conn = this._peers.get(peerId);
+    if (conn) {
+      // Close all outbound calls
       try {
-        this.calls[peerId].close();
+        conn.outAudioCall?.close();
       } catch {}
-      delete this.calls[peerId];
-    }
-    delete this.streams[peerId];
-
-    if (this.videoCalls[peerId]) {
       try {
-        this.videoCalls[peerId].close();
+        conn.outScreenCall?.close();
       } catch {}
-      delete this.videoCalls[peerId];
+      try {
+        conn.outCameraCall?.close();
+      } catch {}
+      // Close all inbound calls
+      try {
+        conn.inAudioCall?.close();
+      } catch {}
+      try {
+        conn.inScreenCall?.close();
+      } catch {}
+      try {
+        conn.inCameraCall?.close();
+      } catch {}
+      this._peers.delete(peerId);
     }
-    delete this.videoStreams[peerId];
 
-    const audio = document.getElementById("vcaudio-" + peerId);
-    if (audio) audio.remove();
-
+    document.getElementById("vcaudio-" + peerId)?.remove();
     this._stopRemoteSpeakingDetection(peerId);
+    this._publish();
   }
 
   private _cleanup(): void {
-    Object.values(this.calls).forEach((c) => {
+    // Close all peer connections (both directions)
+    for (const conn of this._peers.values()) {
       try {
-        c.close();
+        conn.outAudioCall?.close();
       } catch {}
-    });
-    this.calls = {};
-    this.streams = {};
-
-    Object.values(this.videoCalls).forEach((c) => {
       try {
-        c.close();
+        conn.outScreenCall?.close();
       } catch {}
-    });
-    this.videoCalls = {};
-    this.videoStreams = {};
-
-    if (this.videoStream) {
-      this.videoStream.getTracks().forEach((t) => t.stop());
-      this.videoStream = null;
+      try {
+        conn.outCameraCall?.close();
+      } catch {}
+      try {
+        conn.inAudioCall?.close();
+      } catch {}
+      try {
+        conn.inScreenCall?.close();
+      } catch {}
+      try {
+        conn.inCameraCall?.close();
+      } catch {}
     }
+    this._peers.clear();
 
-    if (this.localStream) {
-      this.localStream.getTracks().forEach((t) => t.stop());
-      this.localStream = null;
-    }
+    // Stop all local streams
+    this._stopAllLocalStreams();
 
-    document.querySelectorAll('[id^="vcaudio-"]').forEach((a) => a.remove());
+    // Remove all audio elements
+    document.querySelectorAll('[id^="vcaudio-"]').forEach((el) => el.remove());
 
+    // Stop all speaking detectors
     this._stopLocalSpeakingDetection();
-    for (const peerId of this.remoteSpeakingDetectors.keys()) {
+    for (const peerId of this._remoteDetectors.keys()) {
       this._stopRemoteSpeakingDetection(peerId);
     }
 
-    this.participants = [];
-    this.isMuted = false;
-    this.isSpeaking = false;
-    this.micDenied = false;
+    // Destroy peer
+    if (this._peer) {
+      try {
+        this._peer.destroy();
+      } catch {}
+      this._peer = null;
+    }
+    this._peerReady = null;
+
+    // Reset state
+    this._currentChannel = null;
     this._myUsername = null;
+    this._participants = [];
+    this._isMuted = false;
+    this._isSpeaking = false;
+    this._micDenied = false;
+
+    this._publish();
   }
 
-  private _setupLocalSpeakingDetection(): void {
-    if (!this.localStream) return;
+  private _stopAllLocalStreams(): void {
+    if (this._localScreenStream) {
+      this._localScreenStream.getTracks().forEach((t) => t.stop());
+      this._localScreenStream = null;
+    }
+    if (this._localCameraStream) {
+      this._localCameraStream.getTracks().forEach((t) => t.stop());
+      this._localCameraStream = null;
+    }
+    this._stopAudioStream();
+  }
+
+  // ── Speaking detection ──────────────────────────────────────────────────────
+
+  private _startLocalSpeakingDetection(): void {
+    if (!this._localAudioStream) return;
     this._stopLocalSpeakingDetection();
 
     try {
-      const audioCtx = new AudioContext();
-      const source = audioCtx.createMediaStreamSource(this.localStream);
-      const analyser = audioCtx.createAnalyser();
+      const ctx = new AudioContext();
+      const source = ctx.createMediaStreamSource(this._localAudioStream);
+      const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
 
-      this.localAudioContext = audioCtx;
-      this.localAnalyser = analyser;
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const data = new Uint8Array(analyser.frequencyBinCount);
 
       const check = () => {
-        if (!this.localAnalyser) return;
+        if (!this._localDetector) return;
         try {
-          analyser.getByteFrequencyData(dataArray);
-          const average =
-            (dataArray.reduce((a, b) => a + b, 0) / dataArray.length) *
-            (100 / 255);
-          const speaking = average > this.micThreshold && !this.isMuted;
-          if (speaking !== this.isSpeaking) {
-            this.isSpeaking = speaking;
-
-            if (this.peer?.id) {
-              const me = this.participants.find(
-                (p) => p.peer_id === this.peer?.id,
-              );
-              if (me) {
-                me.speaking = speaking;
-              }
-            }
-
-            this._rerender();
+          analyser.getByteFrequencyData(data);
+          const avg =
+            (data.reduce((a, b) => a + b, 0) / data.length) * (100 / 255);
+          const speaking = avg > micThresholdSignal.value && !this._isMuted;
+          if (speaking !== this._isSpeaking) {
+            this._isSpeaking = speaking;
+            const me = this._selfParticipant();
+            if (me) me.speaking = speaking;
+            this._publish();
           }
         } catch {}
-        this.localAnimFrameId = requestAnimationFrame(check);
+        this._localDetector!.frameId = requestAnimationFrame(check);
       };
-      this.localAnimFrameId = requestAnimationFrame(check);
+
+      const frameId = requestAnimationFrame(check);
+      this._localDetector = { ctx, frameId };
     } catch (e) {
-      console.error("[Voice] Failed local speaking detection:", e);
+      vcWarn("Local speaking detection failed:", e);
     }
   }
 
   private _stopLocalSpeakingDetection(): void {
-    if (this.localAnimFrameId) {
-      cancelAnimationFrame(this.localAnimFrameId);
-      this.localAnimFrameId = null;
-    }
-    if (this.localAudioContext) {
+    if (this._localDetector) {
+      cancelAnimationFrame(this._localDetector.frameId);
       try {
-        this.localAudioContext.close();
+        this._localDetector.ctx.close();
       } catch {}
-      this.localAudioContext = null;
+      this._localDetector = null;
     }
-    this.localAnalyser = null;
-    this.isSpeaking = false;
+    this._isSpeaking = false;
   }
 
-  private _setupRemoteSpeakingDetection(
+  private _startRemoteSpeakingDetection(
     peerId: string,
     stream: MediaStream,
   ): void {
@@ -560,73 +979,92 @@ export class VoiceManagerClass {
       analyser.fftSize = 256;
       source.connect(analyser);
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const det: SpeakingDetector = { ctx, frameId: 0 };
 
       const check = () => {
+        if (!this._remoteDetectors.has(peerId)) return;
         try {
-          analyser.getByteFrequencyData(dataArray);
-          const average =
-            (dataArray.reduce((a, b) => a + b, 0) / dataArray.length) *
-            (100 / 255);
-          const speaking = average > 15;
-
-          const participant = this.participants.find(
+          analyser.getByteFrequencyData(data);
+          const avg =
+            (data.reduce((a, b) => a + b, 0) / data.length) * (100 / 255);
+          const speaking = avg > 15;
+          const participant = this._participants.find(
             (p) => p.peer_id === peerId,
           );
           if (participant && participant.speaking !== speaking) {
             participant.speaking = speaking;
-            this._rerender();
+            this._publish();
           }
         } catch {}
-
-        const det = this.remoteSpeakingDetectors.get(peerId);
-        if (det) {
-          det.frameId = requestAnimationFrame(check);
-        }
+        det.frameId = requestAnimationFrame(check);
       };
 
-      const frameId = requestAnimationFrame(check);
-      this.remoteSpeakingDetectors.set(peerId, { ctx, analyser, frameId });
+      det.frameId = requestAnimationFrame(check);
+      this._remoteDetectors.set(peerId, det);
     } catch (e) {
-      console.error("[Voice] Failed remote speaking detection:", e);
+      vcWarn("Remote speaking detection failed:", e);
     }
   }
 
   private _stopRemoteSpeakingDetection(peerId: string): void {
-    const det = this.remoteSpeakingDetectors.get(peerId);
+    const det = this._remoteDetectors.get(peerId);
     if (det) {
       cancelAnimationFrame(det.frameId);
       try {
         det.ctx.close();
       } catch {}
-      this.remoteSpeakingDetectors.delete(peerId);
+      this._remoteDetectors.delete(peerId);
     }
   }
 
-  private _qualityConstraints(): MediaTrackConstraints {
-    const h = this.streamRes;
+  // ── Private: video constraints ──────────────────────────────────────────────
+
+  private _videoConstraints(): MediaTrackConstraints {
+    const h = voiceVideoRes.value;
     const w =
-      h === 2160
+      h >= 2160
         ? 3840
-        : h === 1440
+        : h >= 1440
           ? 2560
-          : h === 1080
+          : h >= 1080
             ? 1920
-            : h === 720
+            : h >= 720
               ? 1280
               : 854;
+    const fps = voiceVideoFps.value;
     return {
       width: { ideal: w },
       height: { ideal: h },
-      frameRate: { ideal: this.streamFps, max: this.streamFps },
+      frameRate: { ideal: fps, max: fps },
     };
   }
 
-  private _rerender(): void {
-    renderVoiceSignal.value++;
-    renderChannelsSignal.value++;
+  // ── Private: publish state ──────────────────────────────────────────────────
+
+  private _publish(): void {
+    const screenStreams: Record<string, MediaStream> = {};
+    const cameraStreams: Record<string, MediaStream> = {};
+
+    for (const [peerId, conn] of this._peers) {
+      if (conn.screenStream) screenStreams[peerId] = conn.screenStream;
+      if (conn.cameraStream) cameraStreams[peerId] = conn.cameraStream;
+    }
+
+    voiceState.value = {
+      currentChannel: this._currentChannel,
+      participants: [...this._participants],
+      isMuted: this._isMuted,
+      isSpeaking: this._isSpeaking,
+      micDenied: this._micDenied,
+      isScreenSharing: !!this._localScreenStream,
+      isCameraOn: !!this._localCameraStream,
+      screenStreams,
+      cameraStreams,
+      localScreenStream: this._localScreenStream,
+      localCameraStream: this._localCameraStream,
+    };
   }
 }
 
-export const voiceManager = new VoiceManagerClass();
-(window as any).voiceManager = voiceManager;
+export const voiceManager = new VoiceManager();

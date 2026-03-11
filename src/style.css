@@ -5875,13 +5875,14 @@ a {
 
 /* Voice Panel (appears at bottom of channels when connected) */
 .voice-panel {
-  background: var(--surface);
-  border-top: 1px solid var(--border);
+  background: var(--surface-light);
   display: none;
   flex-direction: column;
   gap: 8px;
   margin-top: auto;
   padding: 12px;
+  border-radius: 10px;
+  margin: 8px;
 }
 
 .voice-panel.active {
@@ -10712,7 +10713,6 @@ body,
   }
   .voice-panel {
     left: 0;
-    max-height: 70px;
     overflow-y: auto;
     right: 0;
     top: 48px;
@@ -11099,7 +11099,6 @@ body,
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
-  max-height: 50vh;
   overflow: auto;
   padding: 12px;
 }
@@ -11109,7 +11108,6 @@ body,
   border: 2px solid var(--border);
   border-radius: 12px;
   flex: 1 1 45%;
-  max-width: 640px;
   min-height: 200px;
   min-width: 280px;
   overflow: hidden;
@@ -11118,6 +11116,19 @@ body,
 
 .voice-call-video-self {
   border-color: var(--primary, #5865f2);
+}
+
+.voice-call-video-camera {
+  border-color: var(--success, #3ba55c);
+}
+
+.voice-call-video-camera.voice-call-video-self {
+  border-color: var(--success, #3ba55c);
+}
+
+.voice-call-video-camera .voice-call-video-element {
+  object-fit: cover;
+  transform: scaleX(-1);
 }
 
 .voice-call-video-element {
@@ -11150,12 +11161,6 @@ body,
   justify-content: center;
   overflow-y: auto;
   padding: 24px;
-}
-
-.voice-call-participants.compact {
-  flex: 0;
-  gap: 10px;
-  padding: 12px;
 }
 
 /* Participant tile */

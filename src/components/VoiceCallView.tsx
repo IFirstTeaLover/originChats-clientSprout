@@ -1,30 +1,35 @@
-import { useReducer } from "preact/hooks";
-import { useSignalEffect } from "@preact/signals";
 import { currentUserByServer, serverUrl } from "../state";
-import { renderVoiceSignal, showVoiceCallView } from "../lib/ui-signals";
-import { voiceManager } from "../voice";
+import { showVoiceCallView } from "../lib/ui-signals";
+import { voiceState, voiceManager } from "../voice";
 import { Icon } from "./Icon";
 import { avatarUrl } from "../utils";
 
 export function VoiceCallView() {
-  // useReducer gives a stable forceUpdate — increment it whenever
-  // renderVoiceSignal changes so this component always reflects live state.
-  const [, forceUpdate] = useReducer((n) => n + 1, 0);
-  useSignalEffect(() => {
-    renderVoiceSignal.value; // subscribe
-    forceUpdate(undefined);
-  });
+  const state = voiceState.value;
 
-  const channel = voiceManager.currentChannel;
-  const participants = voiceManager.participants;
   const myUsername =
     currentUserByServer.value[serverUrl.value]?.username || "You";
-  const isMuted = voiceManager.isMuted;
-  const isSpeaking = voiceManager.isSpeaking;
-  const isScreenSharing = !!voiceManager.videoStream;
+
+  const {
+    currentChannel: channel,
+    participants,
+    isMuted,
+    isSpeaking,
+    isScreenSharing,
+    isCameraOn,
+    screenStreams,
+    cameraStreams,
+    localScreenStream,
+    localCameraStream,
+  } = state;
 
   const hasVideoStreams =
-    Object.keys(voiceManager.videoStreams).length > 0 || isScreenSharing;
+    Object.keys(screenStreams).length > 0 ||
+    Object.keys(cameraStreams).length > 0 ||
+    isScreenSharing ||
+    isCameraOn;
+
+  const selfPeerId = voiceManager.getMyPeerId();
 
   return (
     <div className="voice-call-view">
@@ -48,44 +53,49 @@ export function VoiceCallView() {
 
       {hasVideoStreams && (
         <div className="voice-call-video-area">
-          {isScreenSharing && (
-            <div className="voice-call-video-tile voice-call-video-self">
-              <video
-                ref={(el) => {
-                  if (el && voiceManager.videoStream) {
-                    el.srcObject = voiceManager.videoStream;
-                  }
-                }}
-                autoPlay
-                muted
-                playsInline
-                className="voice-call-video-element"
-              />
-              <div className="voice-call-video-label">
-                <span>{myUsername} (You)</span>
-              </div>
-            </div>
+          {/* Local screen share */}
+          {isScreenSharing && localScreenStream && (
+            <VideoTile
+              stream={localScreenStream}
+              label={`${myUsername} (Screen)`}
+              muted
+              isSelf
+            />
           )}
 
-          {Object.entries(voiceManager.videoStreams).map(([peerId]) => {
-            const participant = participants.find((p) => p.peer_id === peerId);
-            const name = participant?.username || peerId;
+          {/* Local camera */}
+          {isCameraOn && localCameraStream && (
+            <VideoTile
+              stream={localCameraStream}
+              label={`${myUsername} (Camera)`}
+              muted
+              isSelf
+              isCamera
+            />
+          )}
+
+          {/* Remote screen shares */}
+          {Object.entries(screenStreams).map(([peerId, stream]) => {
+            const p = participants.find((x) => x.peer_id === peerId);
             return (
-              <div key={peerId} className="voice-call-video-tile">
-                <video
-                  ref={(el) => {
-                    if (el && voiceManager.videoStreams[peerId]) {
-                      el.srcObject = voiceManager.videoStreams[peerId];
-                    }
-                  }}
-                  autoPlay
-                  playsInline
-                  className="voice-call-video-element"
-                />
-                <div className="voice-call-video-label">
-                  <span>{name}</span>
-                </div>
-              </div>
+              <VideoTile
+                key={`screen-${peerId}`}
+                stream={stream}
+                label={`${p?.username || peerId} (Screen)`}
+              />
+            );
+          })}
+
+          {/* Remote cameras */}
+          {Object.entries(cameraStreams).map(([peerId, stream]) => {
+            const p = participants.find((x) => x.peer_id === peerId);
+            return (
+              <VideoTile
+                key={`camera-${peerId}`}
+                stream={stream}
+                label={p?.username || peerId}
+                isCamera
+              />
             );
           })}
         </div>
@@ -94,58 +104,36 @@ export function VoiceCallView() {
       <div
         className={`voice-call-participants ${hasVideoStreams ? "compact" : ""}`}
       >
-        <div
-          className={`voice-call-tile ${isSpeaking ? "speaking" : ""} ${isMuted ? "muted" : ""}`}
-        >
-          <div className="voice-call-tile-avatar-wrap">
-            <div
-              className={`voice-call-tile-speaking-ring ${isSpeaking ? "active" : ""}`}
-            />
-            <img
-              src={avatarUrl(myUsername)}
-              alt={myUsername}
-              className="voice-call-tile-avatar"
-            />
-          </div>
-          <div className="voice-call-tile-name">{myUsername} (You)</div>
-          <div className="voice-call-tile-status">
-            {isMuted ? (
-              <Icon name="MicOff" size={14} />
-            ) : isSpeaking ? (
-              <Icon name="Mic" size={14} />
-            ) : (
-              <Icon name="Mic" size={14} />
-            )}
-          </div>
-        </div>
+        {participants.map((p) => {
+          const isSelf =
+            (selfPeerId && p.peer_id === selfPeerId) ||
+            p.username === myUsername;
+          const speaking = isSelf ? isSpeaking : p.speaking;
+          const muted = isSelf ? isMuted : p.muted;
+          const displayName = isSelf ? `${myUsername} (You)` : p.username;
 
-        {participants.map((p) => (
-          <div
-            key={p.peer_id}
-            className={`voice-call-tile ${p.speaking ? "speaking" : ""} ${p.muted ? "muted" : ""}`}
-          >
-            <div className="voice-call-tile-avatar-wrap">
-              <div
-                className={`voice-call-tile-speaking-ring ${p.speaking ? "active" : ""}`}
-              />
-              <img
-                src={avatarUrl(p.username)}
-                alt={p.username}
-                className="voice-call-tile-avatar"
-              />
+          return (
+            <div
+              key={p.peer_id}
+              className={`voice-call-tile ${speaking ? "speaking" : ""} ${muted ? "muted" : ""}`}
+            >
+              <div className="voice-call-tile-avatar-wrap">
+                <div
+                  className={`voice-call-tile-speaking-ring ${speaking ? "active" : ""}`}
+                />
+                <img
+                  src={avatarUrl(isSelf ? myUsername : p.username)}
+                  alt={displayName}
+                  className="voice-call-tile-avatar"
+                />
+              </div>
+              <div className="voice-call-tile-name">{displayName}</div>
+              <div className="voice-call-tile-status">
+                <Icon name={muted ? "MicOff" : "Mic"} size={14} />
+              </div>
             </div>
-            <div className="voice-call-tile-name">{p.username}</div>
-            <div className="voice-call-tile-status">
-              {p.muted ? (
-                <Icon name="MicOff" size={14} />
-              ) : p.speaking ? (
-                <Icon name="Mic" size={14} />
-              ) : (
-                <Icon name="Mic" size={14} />
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="voice-call-controls">
@@ -155,6 +143,13 @@ export function VoiceCallView() {
           title={isMuted ? "Unmute" : "Mute"}
         >
           <Icon name={isMuted ? "MicOff" : "Mic"} size={22} />
+        </button>
+        <button
+          className={`voice-call-control-btn ${isCameraOn ? "active" : ""}`}
+          onClick={() => voiceManager.toggleCamera()}
+          title={isCameraOn ? "Turn Off Camera" : "Turn On Camera"}
+        >
+          <Icon name={isCameraOn ? "VideoOff" : "Video"} size={22} />
         </button>
         <button
           className={`voice-call-control-btn ${isScreenSharing ? "active" : ""}`}
@@ -170,6 +165,47 @@ export function VoiceCallView() {
         >
           <Icon name="PhoneOff" size={22} />
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Video tile component ──────────────────────────────────────────────────────
+
+function VideoTile({
+  stream,
+  label,
+  muted,
+  isSelf,
+  isCamera,
+}: {
+  stream: MediaStream;
+  label: string;
+  muted?: boolean;
+  isSelf?: boolean;
+  isCamera?: boolean;
+}) {
+  const classes = [
+    "voice-call-video-tile",
+    isSelf && "voice-call-video-self",
+    isCamera && "voice-call-video-camera",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div className={classes}>
+      <video
+        ref={(el) => {
+          if (el && el.srcObject !== stream) el.srcObject = stream;
+        }}
+        autoPlay
+        muted={!!muted}
+        playsInline
+        className="voice-call-video-element"
+      />
+      <div className="voice-call-video-label">
+        <span>{label}</span>
       </div>
     </div>
   );

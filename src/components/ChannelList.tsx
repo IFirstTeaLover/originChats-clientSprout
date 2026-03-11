@@ -24,7 +24,6 @@ import {
 } from "../lib/actions";
 import {
   renderChannelsSignal,
-  renderVoiceSignal,
   showSettingsModal,
   showServerSettingsModal,
   showVoiceCallView,
@@ -33,7 +32,7 @@ import {
   showContextMenu,
 } from "../lib/ui-signals";
 import { Icon } from "./Icon";
-import { voiceManager } from "../voice";
+import { voiceManager, voiceState } from "../voice";
 import { openUserPopout } from "./UserPopout";
 import type { VoiceUser } from "../types";
 import { avatarUrl } from "../utils";
@@ -55,7 +54,6 @@ export function ChannelList() {
   const [, forceUpdate] = useReducer((n) => n + 1, 0);
   useSignalEffect(() => {
     renderChannelsSignal.value; // subscribe to channel changes
-    renderVoiceSignal.value; // subscribe to voice state changes
     forceUpdate(undefined);
   });
   const isDM = serverUrl.value === DM_SERVER_URL;
@@ -68,7 +66,8 @@ export function ChannelList() {
     : rawChs;
   let separatorIndex = 0;
 
-  const isInVoice = voiceManager.isInChannel();
+  const voice = voiceState.value;
+  const isInVoice = !!voice.currentChannel;
   const myUsername = currentUserByServer.value[serverUrl.value]?.username;
 
   const handleChannelClick = (channel: any) => {
@@ -249,7 +248,7 @@ export function ChannelList() {
             return (
               <div key={channel.name} className="voice-channel-wrapper">
                 <div
-                  className={`channel-item ${voiceManager.currentChannel === channel.name ? "active" : ""}`}
+                  className={`channel-item ${voice.currentChannel === channel.name ? "active" : ""}`}
                   onClick={() => handleChannelClick(channel)}
                   onContextMenu={(e: any) =>
                     handleChannelContextMenu(e, channel)
@@ -344,25 +343,30 @@ export function ChannelList() {
               <Icon name="Wifi" size={14} />
               <span>Voice Connected</span>
             </div>
-            <div className="voice-panel-channel">
-              {voiceManager.currentChannel}
-            </div>
+            <div className="voice-panel-channel">{voice.currentChannel}</div>
           </div>
           <div className="voice-panel-controls">
             <button
-              className={`voice-control-btn ${voiceManager.isMuted ? "muted" : ""}`}
+              className={`voice-control-btn ${voice.isMuted ? "muted" : ""}`}
               onClick={() => voiceManager.toggleMute()}
-              title={voiceManager.isMuted ? "Unmute" : "Mute"}
+              title={voice.isMuted ? "Unmute" : "Mute"}
             >
-              <Icon name={voiceManager.isMuted ? "MicOff" : "Mic"} size={18} />
+              <Icon name={voice.isMuted ? "MicOff" : "Mic"} size={18} />
             </button>
             <button
-              className={`voice-control-btn ${voiceManager.videoStream ? "active" : ""}`}
+              className={`voice-control-btn ${voice.isCameraOn ? "active" : ""}`}
+              onClick={() => voiceManager.toggleCamera()}
+              title={voice.isCameraOn ? "Turn Off Camera" : "Turn On Camera"}
+            >
+              <Icon name={voice.isCameraOn ? "VideoOff" : "Video"} size={18} />
+            </button>
+            <button
+              className={`voice-control-btn ${voice.isScreenSharing ? "active" : ""}`}
               onClick={() => voiceManager.toggleScreenShare()}
-              title={voiceManager.videoStream ? "Stop Sharing" : "Share Screen"}
+              title={voice.isScreenSharing ? "Stop Sharing" : "Share Screen"}
             >
               <Icon
-                name={voiceManager.videoStream ? "MonitorOff" : "Monitor"}
+                name={voice.isScreenSharing ? "MonitorOff" : "Monitor"}
                 size={18}
               />
             </button>
