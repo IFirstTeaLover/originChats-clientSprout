@@ -75,7 +75,9 @@ export function MembersList() {
 
   const hoistedSections = hoistedRoles
     .map(({ name, color }) => {
-      const members = memberList.filter((m) => getHoistedRole(m) === name);
+      const members = memberList.filter(
+        (m) => m.status === "online" && getHoistedRole(m) === name,
+      );
       members.forEach((m) => assignedToHoisted.add(m.username));
       return { roleName: name, color, members };
     })
