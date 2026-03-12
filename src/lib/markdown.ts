@@ -95,7 +95,9 @@ function proxyImageUrl(url: string): string {
   try {
     const urlObj = new URL(url);
     if (TRUSTED_DOMAINS.includes(urlObj.hostname)) return url;
-  } catch {}
+  } catch {
+    // ignore
+  }
   return `https://wsrv.nl/?url=${encodeURIComponent(url)}`;
 }
 
@@ -279,6 +281,8 @@ export function parseMarkdown(
 
 export function highlightCodeInContainer(container: HTMLElement): void {
   container.querySelectorAll("pre code").forEach((block) => {
-    hljs.highlightElement(block as HTMLElement);
+    const el = block as HTMLElement;
+    if (el.dataset.highlighted) return;
+    hljs.highlightElement(el);
   });
 }
