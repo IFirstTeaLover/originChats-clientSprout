@@ -3020,6 +3020,10 @@ body.compact-mode .message-single {
   padding-bottom: 2px;
 }
 
+body.compact-mode .message-single {
+  padding-left: 45px;
+}
+
 body.compact-mode .avatar {
   width: 24px !important;
   height: 24px !important;
