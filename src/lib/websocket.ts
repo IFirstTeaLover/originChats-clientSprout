@@ -37,6 +37,7 @@ import {
   offlinePushServers,
   pushSubscriptionsByServer,
   serverCapabilitiesByServer,
+  SPECIAL_CHANNELS,
 } from "../state";
 
 const DM_SERVER_URL = "dms.mistium.com";
@@ -1653,5 +1654,34 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
       console.error(`[${sUrl}] Server error:`, errText);
       break;
     }
+
+    default:
+      console.debug(`[${sUrl}] Unhandled message type:`, msg.cmd || msg.type);
   }
+}
+
+export function refreshCurrentChannel(): void {
+  const sUrl = serverUrl.value;
+  const channel = currentChannel.value;
+  if (!sUrl || !channel || SPECIAL_CHANNELS.has(channel.name)) return;
+
+  const conn = wsConnections[sUrl];
+  if (conn?.status !== "connected") return;
+
+  loadedChannelsByServer[sUrl]?.delete(channel.name);
+  reachedOldestByServer[sUrl]?.delete(channel.name);
+  startMessageFetch(sUrl, channel.name);
+  wsSend({ cmd: "messages_get", channel: channel.name, limit: 30 }, sUrl);
+}
+
+let visibilityHandlerAdded = false;
+export function setupVisibilityHandler(): void {
+  if (visibilityHandlerAdded) return;
+  visibilityHandlerAdded = true;
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      refreshCurrentChannel();
+    }
+  });
 }

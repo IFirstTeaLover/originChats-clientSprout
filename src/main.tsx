@@ -47,7 +47,10 @@ import {
 } from "./lib/persistence";
 import { OriginFSClientClass } from "./originFSKit";
 import { connectToServer } from "./lib/websocket";
-import { requestNotificationPermission } from "./lib/websocket";
+import {
+  requestNotificationPermission,
+  setupVisibilityHandler,
+} from "./lib/websocket";
 import { selectHomeChannel, selectChannel, switchServer } from "./lib/actions";
 import { loadShortcodes } from "./lib/shortcodes";
 import { session as dbSession, readTimes as dbReadTimes } from "./lib/db";
@@ -231,6 +234,7 @@ function App() {
 
     await loadShortcodes();
     requestNotificationPermission();
+    setupVisibilityHandler();
 
     const pendingServer = sessionStorage.getItem("pendingServerJoin") ?? null;
 
