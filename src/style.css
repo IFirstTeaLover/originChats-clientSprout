@@ -13286,3 +13286,15 @@ body,
   text-overflow: ellipsis;
   max-width: 140px;
 }
+
+.thread-item svg {
+  width: 16px;
+  height: 16px;
+}
+
+.thread-name {
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
