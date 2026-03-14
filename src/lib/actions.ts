@@ -517,8 +517,28 @@ export function selectThread(
       parent_channel: thread.parent_channel,
     } as any;
 
-    // Fetch thread messages
+    // Clear thread unread counts
     const sUrl = serverUrl.value;
+    const threadKey = `${sUrl}:thread:${thread.id}`;
+    if (unreadByChannel.value[threadKey]) {
+      const newUnreads = { ...unreadByChannel.value };
+      delete newUnreads[threadKey];
+      unreadByChannel.value = newUnreads;
+    }
+    if (unreadPings.value[threadKey]) {
+      const pingCount = unreadPings.value[threadKey];
+      const newPings = { ...unreadPings.value };
+      delete newPings[threadKey];
+      unreadPings.value = newPings;
+
+      const currentServerPings = serverPingsByServer.value[sUrl] || 0;
+      serverPingsByServer.value = {
+        ...serverPingsByServer.value,
+        [sUrl]: Math.max(0, currentServerPings - pingCount),
+      };
+    }
+
+    // Fetch thread messages
     const hasLoaded = loadedChannelsByServer[sUrl]?.has(thread.id) ?? false;
     if (!hasLoaded) {
       startMessageFetch(sUrl, thread.id);
@@ -526,6 +546,8 @@ export function selectThread(
     }
 
     renderMessagesSignal.value++;
+    renderChannelsSignal.value++;
+    renderGuildSidebarSignal.value++;
     updateUrlFromState();
   } else {
     const currentChannelValue = currentChannel.value as any;

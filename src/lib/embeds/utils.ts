@@ -1,5 +1,3 @@
-import { imageCache } from "../image-cache";
-
 const YOUTUBE_REGEX =
   /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]+)/;
 const IMAGE_EXTENSIONS = [
@@ -78,7 +76,6 @@ export async function detectEmbedType(url: string) {
     return { type, url, path };
   }
 
-  // Wikipedia
   const wikiMatch = url.match(
     /(?:^|\/\/)([a-z]{2,})\.wikipedia\.org\/wiki\/([^#?]+)/i,
   );
@@ -91,7 +88,6 @@ export async function detectEmbedType(url: string) {
     };
   }
 
-  // Spotify
   if (
     /open\.spotify\.com\/(track|album|playlist|episode|artist)\/[A-Za-z0-9]+/i.test(
       url,
@@ -100,13 +96,11 @@ export async function detectEmbedType(url: string) {
     return { type: "spotify", url, spotifyUrl: url };
   }
 
-  // Steam store page
   const steamMatch = url.match(/store\.steampowered\.com\/app\/(\d+)/i);
   if (steamMatch) {
     return { type: "steam", url, steamAppId: steamMatch[1] };
   }
 
-  // MistWarp — project ID can be in the path (/123) or the hash (#123)
   const mistWarpMatch = url.match(/warp\.mistium\.com(?:\/(\d+)|[^#]*#(\d+))/i);
   if (mistWarpMatch) {
     return {
@@ -120,7 +114,6 @@ export async function detectEmbedType(url: string) {
     return { type: "video", url };
   }
   if (hasExtension(url, IMAGE_EXTENSIONS) || url.startsWith("data:image/")) {
-    imageCache.load(proxyImageUrl(url));
     return { type: "image", url };
   }
 
@@ -136,10 +129,7 @@ export async function detectEmbedType(url: string) {
     if (res.ok) {
       const ct = res.headers.get("Content-Type") || "";
       if (ct.startsWith("video/")) return { type: "video", url };
-      if (ct.startsWith("image/")) {
-        imageCache.load(proxyImageUrl(url));
-        return { type: "image", url };
-      }
+      if (ct.startsWith("image/")) return { type: "image", url };
     }
   } catch (err) {
     console.debug("HEAD request failed for", url, err);

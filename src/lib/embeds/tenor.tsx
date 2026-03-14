@@ -1,19 +1,14 @@
 import { useState, useEffect } from "preact/hooks";
 import { proxyImageUrl } from "./utils";
-import { imageCache } from "../image-cache";
 
 interface TenorEmbedProps {
   tenorId: string;
   originalUrl: string;
 }
 
-export function TenorEmbed({ tenorId, originalUrl }: TenorEmbedProps) {
+export function TenorEmbed({ tenorId }: TenorEmbedProps) {
   const [gifUrl, setGifUrl] = useState("");
   const [error, setError] = useState(false);
-  const [dimensions, setDimensions] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,20 +36,6 @@ export function TenorEmbed({ tenorId, originalUrl }: TenorEmbedProps) {
     };
   }, [tenorId]);
 
-  useEffect(() => {
-    if (!gifUrl) return;
-
-    const cached = imageCache.get(gifUrl);
-    if (cached) {
-      setDimensions({ width: cached.width, height: cached.height });
-      return;
-    }
-
-    imageCache.load(proxyImageUrl(gifUrl)).then((dims) => {
-      if (dims) setDimensions({ width: dims.width, height: dims.height });
-    });
-  }, [gifUrl]);
-
   if (error || !gifUrl) {
     return (
       <div
@@ -64,13 +45,9 @@ export function TenorEmbed({ tenorId, originalUrl }: TenorEmbedProps) {
     );
   }
 
-  const placeholderStyle = dimensions
-    ? `min-width: ${Math.min(dimensions.width, 350)}px; min-height: ${Math.min(dimensions.height / (dimensions.width / Math.min(dimensions.width, 350)), 200)}px;`
-    : "min-width: 200px; min-height: 150px;";
-
   return (
     <div className="embed-container tenor-embed">
-      <div className="chat-image-wrapper" style={placeholderStyle}>
+      <div className="chat-image-wrapper">
         <img
           src={proxyImageUrl(gifUrl)}
           alt="Tenor GIF"

@@ -1044,17 +1044,26 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
         }
       }
 
+      const isThreadView =
+        isThreadMessage && currentThread.value?.id === msgNew.thread_id;
       const isCurrentView =
-        serverUrl.value === sUrl && currentChannel.value?.name === messageKey;
+        isThreadView ||
+        (!isThreadMessage &&
+          serverUrl.value === sUrl &&
+          currentChannel.value?.name === messageKey);
 
       const notifLevel = getChannelNotifLevel(sUrl, targetChannel);
       const isMuted = notifLevel === "none";
       const channelKey = `${sUrl}:${targetChannel}`;
+      const threadKey = isThreadMessage
+        ? `${sUrl}:thread:${msgNew.thread_id}`
+        : null;
 
       if (!isCurrentView && !isMuted) {
+        const keyToIncrement = isThreadMessage ? threadKey! : channelKey;
         unreadByChannel.value = {
           ...unreadByChannel.value,
-          [channelKey]: (unreadByChannel.value[channelKey] || 0) + 1,
+          [keyToIncrement]: (unreadByChannel.value[keyToIncrement] || 0) + 1,
         };
 
         if (
@@ -1069,9 +1078,13 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
         if (notifLevel === "all") {
           const myUsername = currentUserByServer.value[sUrl]?.username;
           if (msgNew.message.user !== myUsername) {
+            const pingKeyToIncrement = isThreadMessage
+              ? threadKey!
+              : channelKey;
             unreadPings.value = {
               ...unreadPings.value,
-              [channelKey]: (unreadPings.value[channelKey] || 0) + 1,
+              [pingKeyToIncrement]:
+                (unreadPings.value[pingKeyToIncrement] || 0) + 1,
             };
             serverPingsByServer.value = {
               ...serverPingsByServer.value,
@@ -1189,11 +1202,12 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
         !isMuted &&
         notifLevel !== "all"
       ) {
+        const pingKeyToUse = isThreadMessage ? threadKey! : channelKey;
         if (isUserPinged) {
           if (!isCurrentView) {
             unreadPings.value = {
               ...unreadPings.value,
-              [channelKey]: (unreadPings.value[channelKey] || 0) + 1,
+              [pingKeyToUse]: (unreadPings.value[pingKeyToUse] || 0) + 1,
             };
             if (serverUrl.value === sUrl) renderChannelsSignal.value++;
           }
@@ -1220,7 +1234,7 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
           if (!isCurrentView) {
             unreadPings.value = {
               ...unreadPings.value,
-              [channelKey]: (unreadPings.value[channelKey] || 0) + 1,
+              [pingKeyToUse]: (unreadPings.value[pingKeyToUse] || 0) + 1,
             };
             if (serverUrl.value === sUrl) renderChannelsSignal.value++;
           }
@@ -1250,7 +1264,7 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
           if (!isCurrentView) {
             unreadPings.value = {
               ...unreadPings.value,
-              [channelKey]: (unreadPings.value[channelKey] || 0) + 1,
+              [pingKeyToUse]: (unreadPings.value[pingKeyToUse] || 0) + 1,
             };
             if (serverUrl.value === sUrl) renderChannelsSignal.value++;
           }

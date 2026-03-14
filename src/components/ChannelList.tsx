@@ -354,11 +354,9 @@ export function ChannelList() {
 
           if (isForum) {
             const ch = currentChannel.value as any;
+            const isThreadSelected = currentThread.value?.id !== undefined;
             const isForumSelected =
-              ch?.name === channel.name || ch?.parent_channel === channel.name;
-            const isThreadSelected =
-              currentThread.value?.id !== undefined &&
-              ch?.parent_channel === channel.name;
+              !isThreadSelected && ch?.name === channel.name;
 
             return (
               <div key={channel.name}>
@@ -372,29 +370,46 @@ export function ChannelList() {
                   <Icon name="MessageCircle" size={18} />
                   <span>{displayName}</span>
                 </div>
-                {recentThreads.map((thread: any) => (
-                  <div
-                    key={thread.id}
-                    className={`channel-item thread-item ${!voiceChannelActive && currentThread.value?.id === thread.id ? "active" : ""}`}
-                    onClick={(e: any) => {
-                      e.stopPropagation();
-                      selectThread(thread);
-                      wsSend(
-                        { cmd: "thread_messages", thread_id: thread.id },
-                        serverUrl.value,
-                      );
-                    }}
-                    onContextMenu={(e: any) => showThreadMenu(e, thread)}
-                  >
-                    <Icon name="CornerDownRight" size={15} />
-                    <span className="thread-name">{thread.name}</span>
-                    {thread.locked && (
-                      <span className="thread-locked-icon">
-                        <Icon name="Lock" size={12} />
-                      </span>
-                    )}
-                  </div>
-                ))}
+                {recentThreads.map((thread: any) => {
+                  const threadPingKey = `${serverUrl.value}:thread:${thread.id}`;
+                  const threadUnreadKey = threadPingKey;
+                  const threadHasPing = unreadPings.value[threadPingKey] > 0;
+                  const threadHasUnread =
+                    !threadHasPing &&
+                    unreadByChannel.value[threadUnreadKey] > 0;
+
+                  return (
+                    <div
+                      key={thread.id}
+                      className={`channel-item thread-item ${!voiceChannelActive && currentThread.value?.id === thread.id ? "active" : ""} ${threadHasUnread ? "has-unread" : ""}`}
+                      onClick={(e: any) => {
+                        e.stopPropagation();
+                        selectThread(thread);
+                        wsSend(
+                          { cmd: "thread_messages", thread_id: thread.id },
+                          serverUrl.value,
+                        );
+                      }}
+                      onContextMenu={(e: any) => showThreadMenu(e, thread)}
+                    >
+                      <Icon name="CornerDownRight" size={15} />
+                      <span className="thread-name">{thread.name}</span>
+                      {thread.locked && (
+                        <span className="thread-locked-icon">
+                          <Icon name="Lock" size={12} />
+                        </span>
+                      )}
+                      {threadHasPing && (
+                        <span className="ping-badge">
+                          {unreadPings.value[threadPingKey]}
+                        </span>
+                      )}
+                      {threadHasUnread && (
+                        <span className="unread-indicator"></span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             );
           }

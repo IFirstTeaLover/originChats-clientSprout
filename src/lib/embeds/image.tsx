@@ -1,26 +1,13 @@
 import { useState, useEffect } from "preact/hooks";
 import { proxyImageUrl } from "./utils";
-import { imageCache } from "../image-cache";
 
 export function ImageEmbed({ url }: { url: string }) {
   const [isValid, setIsValid] = useState<boolean | null>(null);
-  const [dimensions, setDimensions] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     const checkImage = async () => {
-      const proxiedUrl = proxyImageUrl(url);
-
-      imageCache.load(proxiedUrl).then((dims) => {
-        if (!cancelled && dims) {
-          setDimensions({ width: dims.width, height: dims.height });
-        }
-      });
-
       try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 5000);
@@ -51,16 +38,7 @@ export function ImageEmbed({ url }: { url: string }) {
   }, [url]);
 
   if (isValid === null) {
-    const cached = imageCache.get(proxyImageUrl(url));
-    const skeletonStyle = cached
-      ? `width: ${Math.min(cached.width, 400)}px; height: ${Math.min(cached.height / (cached.width / Math.min(cached.width, 400)), 300)}px;`
-      : "width: 300px; height: 200px;";
-    return (
-      <div
-        className="embed-container image-embed skeleton"
-        style={skeletonStyle}
-      />
-    );
+    return <div className="embed-container image-embed skeleton" />;
   }
   if (!isValid)
     return (
@@ -69,13 +47,9 @@ export function ImageEmbed({ url }: { url: string }) {
       </a>
     );
 
-  const placeholderStyle = dimensions
-    ? `min-width: ${Math.min(dimensions.width, 400)}px; min-height: ${Math.min(dimensions.height / (dimensions.width / Math.min(dimensions.width, 400)), 300)}px;`
-    : "min-width: 200px; min-height: 150px;";
-
   return (
     <div className="embed-container image-embed">
-      <div className="chat-image-wrapper" style={placeholderStyle}>
+      <div className="chat-image-wrapper">
         <img
           src={proxyImageUrl(url)}
           alt="image"
