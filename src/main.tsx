@@ -8,6 +8,7 @@ import {
   token,
   serverUrl,
   currentChannel,
+  currentThread,
   servers,
   channelsByServer,
   messagesByServer,
@@ -39,6 +40,7 @@ import {
   mobileSidebarOpen,
   mobilePanelOpen,
   closeMobileNav,
+  showThreadPanel,
 } from "./lib/ui-signals";
 import {
   loadServers,
@@ -51,7 +53,12 @@ import {
   requestNotificationPermission,
   setupVisibilityHandler,
 } from "./lib/websocket";
-import { selectHomeChannel, selectChannel, switchServer } from "./lib/actions";
+import {
+  selectHomeChannel,
+  selectChannel,
+  switchServer,
+  navigateFromUrl,
+} from "./lib/actions";
 import { loadShortcodes } from "./lib/shortcodes";
 import { session as dbSession, readTimes as dbReadTimes } from "./lib/db";
 import { initSettingsFromDb } from "./state";
@@ -81,11 +88,21 @@ import { VoiceCallView } from "./components/VoiceCallView";
 import { GlobalContextMenu } from "./components/ContextMenu";
 import { DiscoveryPage } from "./components/DiscoveryPage";
 import { OfflineScreen } from "./components/OfflineScreen";
+import { ThreadPanel, ThreadView } from "./components/ThreadPanel";
+import { MembersList } from "./components/MembersList";
 import { useFavicon } from "./lib/useFavicon";
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
   useFavicon();
+
+  useEffect(() => {
+    const handlePopState = () => {
+      navigateFromUrl();
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const boot = async () => {
     isOffline.value = false;
@@ -289,6 +306,7 @@ function App() {
 
         await waitForChannel();
         setIsLoading(false);
+        navigateFromUrl();
         return;
       }
       // If connection failed fall through to the normal home landing
@@ -299,6 +317,7 @@ function App() {
     serverUrl.value = DM_SERVER_URL;
     selectHomeChannel();
     setIsLoading(false);
+    navigateFromUrl();
   };
 
   useEffect(() => {
@@ -320,6 +339,8 @@ function App() {
     currentChannel.value?.name === "new_message" &&
     serverUrl.value === DM_SERVER_URL;
   const showDiscovery = currentChannel.value?.name === "discovery";
+  const isForumChannel = currentChannel.value?.type === "forum";
+  const isThreadSelected = currentChannel.value?.type === "thread";
 
   const voiceCallActive = showVoiceCallView.value;
 
@@ -345,6 +366,8 @@ function App() {
             <DMFriendsTab />
           ) : showNewMessage ? (
             <NewMessageTab />
+          ) : isForumChannel && !isThreadSelected ? (
+            <ThreadPanel />
           ) : (
             <MessageArea />
           )}

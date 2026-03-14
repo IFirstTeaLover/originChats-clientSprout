@@ -4,6 +4,7 @@ import { useSignalEffect } from "@preact/signals";
 import { parseEmojisInContainer, emojiImgUrl } from "../lib/emoji";
 import {
   currentChannel,
+  currentThread,
   messages,
   messagesByServer,
   currentUser,
@@ -172,10 +173,16 @@ async function sendMessage() {
   pendingImageUploads = [];
   if (setPendingImagesRef) setPendingImagesRef([]);
 
+  const isThread = currentChannel.value?.type === "thread";
   const msg: any = {
     cmd: "message_new",
     content: replaceShortcodes(finalContent),
-    channel: currentChannel.value.name,
+    ...(isThread
+      ? {
+          thread_id: currentThread.value?.id,
+          channel: (currentChannel.value as any).parent_channel,
+        }
+      : { channel: currentChannel.value.name }),
   };
   if (replyTo.value) {
     msg.reply_to = replyTo.value.id;
@@ -877,7 +884,10 @@ export function MessageArea() {
     isLoadingOlder: loadingOlder,
     onOlderLoaded: () => setLoadingOlder(false),
     onLoadOlder: () => {
-      const ch = currentChannel.value?.name;
+      const ch =
+        currentChannel.value?.type === "thread" && currentThread.value
+          ? currentThread.value.id
+          : currentChannel.value?.name;
       const sUrl = serverUrl.value;
       if (!ch || !sUrl) return;
       if (SPECIAL_CHANNELS.has(ch)) return;
@@ -1089,8 +1099,16 @@ export function MessageArea() {
   });
 
   const currentMessages = currentChannel.value
-    ? messages.value[currentChannel.value.name] || []
+    ? messages.value[
+        currentChannel.value.type === "thread" && currentThread.value
+          ? currentThread.value.id
+          : currentChannel.value.name
+      ] || []
     : [];
+  const messageKey =
+    currentChannel.value?.type === "thread" && currentThread.value
+      ? currentThread.value.id
+      : currentChannel.value?.name || "";
   const messageGroups = groupMessages(currentMessages);
 
   const handleKeyDown = (
@@ -1525,7 +1543,7 @@ export function MessageArea() {
 
   const handleReaction = (msg: Message, emoji: string) => {
     // Read live state so the toggle is always accurate, even after rapid clicks
-    const channelMsgs = messages.value[currentChannel.value?.name || ""] || [];
+    const channelMsgs = messages.value[messageKey] || [];
     const liveMsg = channelMsgs.find((m) => m.id === msg.id);
     const liveUsers: string[] = (liveMsg?.reactions?.[emoji] ?? []) as string[];
     const hasReacted = liveUsers.includes(currentUser.value?.username);
@@ -1542,8 +1560,7 @@ export function MessageArea() {
 
   const getReplyMessage = (msg: Message): Message | null => {
     if (!msg.reply_to) return null;
-    const channelMessages =
-      messages.value[currentChannel.value?.name || ""] || [];
+    const channelMessages = messages.value[messageKey] || [];
     const replyMsg = channelMessages.find((m) => m.id === msg.reply_to?.id);
     if (!replyMsg && currentChannel.value?.name && msg.reply_to?.id) {
       fetchMissingReplyMessage(
@@ -1800,9 +1817,9 @@ export function MessageArea() {
               onContextMenu={(e: any) => {
                 e.preventDefault();
                 e.stopPropagation();
-                const liveMsg = (
-                  messages.value[currentChannel.value?.name || ""] || []
-                ).find((m) => m.id === msg.id);
+                const liveMsg = (messages.value[messageKey] || []).find(
+                  (m) => m.id === msg.id,
+                );
                 const liveUsers: string[] =
                   (liveMsg?.reactions?.[emoji] as string[]) ?? users;
                 setReactionModal({ emoji, users: liveUsers });

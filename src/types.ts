@@ -3,10 +3,21 @@ export interface Channel {
   type: string;
   display_name?: string;
   icon?: string;
-  permissions?: { view?: string[]; send?: string[] };
+  permissions?: { view?: string[]; send?: string[]; create_thread?: string[] };
   voice_state?: VoiceUser[];
   last_message?: number;
   size?: number;
+  threads?: Thread[];
+}
+
+export interface Thread {
+  id: string;
+  name: string;
+  parent_channel: string;
+  created_by: string;
+  created_at: number;
+  locked: boolean;
+  archived: boolean;
 }
 
 export interface VoiceUser {

@@ -1,6 +1,7 @@
 import {
   serverUrl,
   currentChannel,
+  currentThread,
   channelsByServer,
   readTimesByServer,
   unreadByChannel,
@@ -15,6 +16,7 @@ import {
   usersByServer,
   currentUserByServer,
   serverPingsByServer,
+  threadsByServer,
   DM_SERVER_URL,
   SPECIAL_CHANNELS,
   setPendingDMAddUsername,
@@ -22,7 +24,11 @@ import {
   friends,
   friendRequests,
 } from "../state";
-import { renderGuildSidebarSignal, renderChannelsSignal } from "./ui-signals";
+import {
+  renderGuildSidebarSignal,
+  renderChannelsSignal,
+  renderMessagesSignal,
+} from "./ui-signals";
 import {
   wsSend,
   closeWebSocket,
@@ -50,12 +56,25 @@ export function selectChannel(channel: {
 
   currentChannel.value = channel as any;
 
+  // Clear thread selection when selecting a non-thread channel
+  if (channel.type !== "thread") {
+    currentThread.value = null;
+  }
+
   const sUrl = serverUrl.value;
 
   markChannelAsRead(channel.name);
 
   if (SPECIAL_CHANNELS.has(channel.name)) {
     renderChannelsSignal.value++;
+    return;
+  }
+
+  // Don't fetch messages for forum channels - they use threads instead
+  if (channel.type === "forum") {
+    renderChannelsSignal.value++;
+    renderMessagesSignal.value++;
+    updateUrlFromState();
     return;
   }
 
@@ -71,6 +90,7 @@ export function selectChannel(channel: {
   }
 
   renderChannelsSignal.value++;
+  updateUrlFromState();
 }
 
 export function selectHomeChannel(): void {
@@ -81,6 +101,7 @@ export function selectHomeChannel(): void {
     display_name: "Home",
   } as any;
   renderChannelsSignal.value++;
+  updateUrlFromState();
 }
 
 export function selectRelationshipsChannel(): void {
@@ -91,6 +112,7 @@ export function selectRelationshipsChannel(): void {
     display_name: "Friends",
   } as any;
   renderChannelsSignal.value++;
+  updateUrlFromState();
 }
 
 export function selectDiscoveryChannel(): void {
@@ -100,6 +122,7 @@ export function selectDiscoveryChannel(): void {
     display_name: "Discover",
   } as any;
   renderChannelsSignal.value++;
+  updateUrlFromState();
 }
 
 export async function switchServer(url: string): Promise<boolean> {
@@ -383,4 +406,134 @@ export async function blockUser(username: string): Promise<void> {
 export async function unblockUser(username: string): Promise<void> {
   await unblockUserApi(username);
   blockedUsers.value = blockedUsers.value.filter((u) => u !== username);
+}
+
+// ============= THREAD ACTIONS =============
+
+export function createThread(channel: string, name: string): void {
+  wsSend({ cmd: "thread_create", channel, name }, serverUrl.value);
+}
+
+export function deleteThread(threadId: string): void {
+  wsSend({ cmd: "thread_delete", thread_id: threadId }, serverUrl.value);
+}
+
+export function getThread(threadId: string): void {
+  wsSend({ cmd: "thread_get", thread_id: threadId }, serverUrl.value);
+}
+
+function updateUrlFromState(): void {
+  const sUrl = serverUrl.value;
+  const channel = currentChannel.value as any;
+  const thread = currentThread.value;
+
+  if (!sUrl) return;
+
+  const baseUrl = `${window.location.protocol}//${window.location.host}`;
+  let newPath = `/app/${encodeURIComponent(sUrl)}`;
+
+  if (channel) {
+    if (channel.type === "thread" && channel.parent_channel) {
+      newPath += `/${encodeURIComponent(channel.parent_channel)}`;
+    } else {
+      newPath += `/${encodeURIComponent(channel.name)}`;
+    }
+    if (thread) {
+      newPath += `/${encodeURIComponent(thread.id)}`;
+    }
+  }
+
+  if (window.location.pathname !== newPath) {
+    window.history.replaceState({}, document.title, newPath);
+  }
+}
+
+export function navigateFromUrl(): void {
+  const path = window.location.pathname;
+  const parts = path.split("/").filter(Boolean);
+
+  if (parts[0] === "app" && parts[1]) {
+    const targetServer = decodeURIComponent(parts[1]);
+    const targetChannel = parts[2] ? decodeURIComponent(parts[2]) : null;
+    const targetThread = parts[3] ? decodeURIComponent(parts[3]) : null;
+
+    if (targetServer !== serverUrl.value) {
+      switchServer(targetServer).then(() => {
+        selectChannelFromUrl(targetChannel, targetThread);
+      });
+    } else {
+      selectChannelFromUrl(targetChannel, targetThread);
+    }
+  } else {
+    selectHomeChannel();
+  }
+}
+
+function selectChannelFromUrl(
+  channelName: string | null,
+  threadId: string | null,
+): void {
+  if (!channelName) {
+    selectHomeChannel();
+    return;
+  }
+
+  const sUrl = serverUrl.value;
+  const serverChannels = channelsByServer.value[sUrl];
+  const channel = serverChannels?.find((c) => c.name === channelName);
+
+  if (!channel) return;
+
+  if (channel.type === "forum") {
+    selectChannel(channel);
+    if (threadId) {
+      const forumThreads = threadsByServer.value[sUrl]?.[channelName] || [];
+      const thread = forumThreads.find((t) => t.id === threadId);
+      if (thread) {
+        selectThread(thread);
+        wsSend({ cmd: "thread_messages", thread_id: thread.id }, sUrl);
+      }
+    }
+  } else {
+    selectChannel(channel);
+  }
+}
+
+export function selectThread(
+  thread: { id: string; name: string; parent_channel: string } | null,
+): void {
+  currentThread.value = thread as any;
+
+  if (thread) {
+    currentChannel.value = {
+      name: thread.parent_channel,
+      type: "thread",
+      display_name: thread.name,
+      parent_channel: thread.parent_channel,
+    } as any;
+
+    // Fetch thread messages
+    const sUrl = serverUrl.value;
+    const hasLoaded = loadedChannelsByServer[sUrl]?.has(thread.id) ?? false;
+    if (!hasLoaded) {
+      startMessageFetch(sUrl, thread.id);
+      wsSend({ cmd: "thread_messages", thread_id: thread.id }, sUrl);
+    }
+
+    renderMessagesSignal.value++;
+    updateUrlFromState();
+  } else {
+    const currentChannelValue = currentChannel.value as any;
+    if (
+      currentChannelValue?.type === "thread" &&
+      currentChannelValue?.parent_channel
+    ) {
+      currentChannel.value = {
+        name: currentChannelValue.parent_channel,
+        type: "forum",
+        display_name: currentChannelValue.parent_channel,
+      } as any;
+    }
+    updateUrlFromState();
+  }
 }

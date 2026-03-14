@@ -180,7 +180,10 @@ export function Header() {
   const renderDesktopHeader = () => (
     <div className="main-messages-header">
       <div className="main-header-left">
-        <Icon name="Hash" size={24} />
+        <Icon
+          name={ch?.type === "thread" ? "MessageSquare" : "Hash"}
+          size={24}
+        />
         <span className="main-header-channel-name">
           {currentChannel.value?.display_name ||
             currentChannel.value?.name ||

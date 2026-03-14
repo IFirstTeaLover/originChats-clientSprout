@@ -1,7 +1,9 @@
 import {
   serverUrl,
   currentChannel,
+  currentThread,
   channelsByServer,
+  threadsByServer,
   messagesByServer,
   loadedChannelsByServer,
   reachedOldestByServer,
@@ -37,9 +39,13 @@ import {
   pushSubscriptionsByServer,
   serverCapabilitiesByServer,
   SPECIAL_CHANNELS,
+  addThreadToChannel,
+  removeThreadFromChannel,
+  updateThreadInChannel,
+  setThreadMessagesForServer,
 } from "../state";
 
-import { Channel, VoiceUser, Message, DMServer, Role } from "../types";
+import { Channel, VoiceUser, Message, DMServer, Role, Thread } from "../types";
 
 const DM_SERVER_URL = "dms.mistium.com";
 import {
@@ -791,8 +797,21 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
       }
       break;
     }
-    case "channels_get":
+    case "channels_get": {
       channelsByServer.value = { ...channelsByServer.value, [sUrl]: msg.val };
+      // Extract threads from forum channels
+      const forumThreads: Record<string, any[]> = {};
+      for (const channel of msg.val) {
+        if (channel.type === "forum" && channel.threads) {
+          forumThreads[channel.name] = channel.threads;
+        }
+      }
+      if (Object.keys(forumThreads).length > 0) {
+        threadsByServer.value = {
+          ...threadsByServer.value,
+          [sUrl]: forumThreads,
+        };
+      }
       renderChannelsSignal.value++;
       // If a "dm add" was pending and this is the DMS responding with the
       // updated channel list, the command succeeded — clear the pending state.
@@ -808,6 +827,68 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
         selectChannel(channelsByServer.value[sUrl][0]);
       }
       break;
+    }
+    case "thread_create": {
+      const threadCreate = msg as any;
+      if (threadCreate.thread && threadCreate.channel) {
+        addThreadToChannel(sUrl, threadCreate.channel, threadCreate.thread);
+        renderChannelsSignal.value++;
+      }
+      break;
+    }
+    case "thread_delete": {
+      const threadDelete = msg as any;
+      if (threadDelete.thread_id && threadDelete.channel) {
+        removeThreadFromChannel(
+          sUrl,
+          threadDelete.channel,
+          threadDelete.thread_id,
+        );
+        if (currentThread.value?.id === threadDelete.thread_id) {
+          currentThread.value = null;
+        }
+        renderChannelsSignal.value++;
+      }
+      break;
+    }
+    case "thread_get": {
+      const threadGet = msg as any;
+      if (threadGet.thread) {
+        currentThread.value = threadGet.thread;
+      }
+      break;
+    }
+    case "thread_messages": {
+      const threadMsgs = msg as any;
+      if (threadMsgs.thread_id && threadMsgs.messages) {
+        setThreadMessagesForServer(
+          sUrl,
+          threadMsgs.thread_id,
+          threadMsgs.messages,
+        );
+        // Also store in messagesByServer so MessageArea can display them
+        if (!messagesByServer.value[sUrl]) {
+          messagesByServer.value = {
+            ...messagesByServer.value,
+            [sUrl]: {},
+          };
+        }
+        messagesByServer.value = {
+          ...messagesByServer.value,
+          [sUrl]: {
+            ...messagesByServer.value[sUrl],
+            [threadMsgs.thread_id]: threadMsgs.messages,
+          },
+        };
+        // Mark thread as loaded
+        if (!loadedChannelsByServer[sUrl]) {
+          loadedChannelsByServer[sUrl] = new Set();
+        }
+        loadedChannelsByServer[sUrl].add(threadMsgs.thread_id);
+        renderMessagesSignal.value++;
+      }
+      break;
+    }
     case "users_list": {
       const existing = usersByServer.value[sUrl] || {};
       const next: Record<string, (typeof existing)[string]> = {};
@@ -843,18 +924,21 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
 
       const msgNew = msg as MessageNew;
 
+      const isThreadMessage = !!msgNew.thread_id;
+      const messageKey = isThreadMessage ? msgNew.thread_id! : msgNew.channel;
+
       const channelIsLoaded =
-        loadedChannelsByServer[sUrl]?.has(msgNew.channel) ?? false;
+        loadedChannelsByServer[sUrl]?.has(messageKey) ?? false;
       if (channelIsLoaded) {
         if (!messagesByServer.value[sUrl])
           messagesByServer.value = { ...messagesByServer.value, [sUrl]: {} };
-        if (!messagesByServer.value[sUrl][msgNew.channel]) {
+        if (!messagesByServer.value[sUrl][messageKey]) {
           messagesByServer.value = {
             ...messagesByServer.value,
-            [sUrl]: { ...messagesByServer.value[sUrl], [msgNew.channel]: [] },
+            [sUrl]: { ...messagesByServer.value[sUrl], [messageKey]: [] },
           };
         }
-        const channelMsgs = messagesByServer.value[sUrl][msgNew.channel];
+        const channelMsgs = messagesByServer.value[sUrl][messageKey];
         const alreadyExists = channelMsgs.some(
           (m: Message) => m.id === msgNew.message.id,
         );
@@ -863,15 +947,16 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
             ...messagesByServer.value,
             [sUrl]: {
               ...messagesByServer.value[sUrl],
-              [msgNew.channel]: [...channelMsgs, msgNew.message],
+              [messageKey]: [...channelMsgs, msgNew.message],
             },
           };
         }
       }
 
       const chList = channelsByServer.value[sUrl];
+      const targetChannel = msgNew.channel;
       if (chList) {
-        const idx = chList.findIndex((c: Channel) => c.name === msgNew.channel);
+        const idx = chList.findIndex((c: Channel) => c.name === targetChannel);
         if (idx !== -1 && msgNew.message.timestamp) {
           const updatedList = [...chList];
           updatedList[idx] = {
@@ -889,12 +974,11 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
       }
 
       const isCurrentView =
-        serverUrl.value === sUrl &&
-        msgNew.channel === currentChannel.value?.name;
+        serverUrl.value === sUrl && currentChannel.value?.name === messageKey;
 
-      const notifLevel = getChannelNotifLevel(sUrl, msgNew.channel);
+      const notifLevel = getChannelNotifLevel(sUrl, targetChannel);
       const isMuted = notifLevel === "none";
-      const channelKey = `${sUrl}:${msgNew.channel}`;
+      const channelKey = `${sUrl}:${targetChannel}`;
 
       if (!isCurrentView && !isMuted) {
         unreadByChannel.value = {
@@ -1417,7 +1501,7 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
     }
     case "user_disconnect": {
       const userDisconnect = msg as UserDisconnect;
-      const uKey = userDisconnect.user.toLowerCase();
+      const uKey = userDisconnect.username.toLowerCase();
       if (usersByServer.value[sUrl]?.[uKey]) {
         usersByServer.value = {
           ...usersByServer.value,

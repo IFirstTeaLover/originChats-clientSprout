@@ -4,7 +4,9 @@ import { useSignalEffect } from "@preact/signals";
 import {
   serverUrl,
   currentChannel,
+  currentThread,
   channels,
+  threadsByServer,
   readTimesByServer,
   unreadByChannel,
   unreadPings,
@@ -22,6 +24,8 @@ import {
   selectHomeChannel,
   selectRelationshipsChannel,
   markChannelAsRead,
+  selectThread,
+  createThread,
 } from "../lib/actions";
 import {
   renderChannelsSignal,
@@ -31,6 +35,7 @@ import {
   mobileSidebarOpen,
   closeMobileNav,
   showContextMenu,
+  showThreadPanel,
 } from "../lib/ui-signals";
 import { Icon } from "./Icon";
 import { voiceManager, voiceState } from "../voice";
@@ -39,6 +44,8 @@ import type { VoiceUser } from "../types";
 import { avatarUrl } from "../utils";
 import { updateStatus, clearStatus } from "../lib/rotur-api";
 import { saveNotifSettings } from "../lib/persistence";
+import { ThreadContextMenu, useThreadContextMenu } from "./ThreadContextMenu";
+import { wsSend } from "../lib/websocket";
 
 function isChannelUnread(
   channel: { name: string; last_message?: number },
@@ -58,6 +65,7 @@ export function ChannelList() {
     renderChannelsSignal.value; // subscribe to channel changes
     voiceState.value; // re-render when voice state changes
     showVoiceCallView.value; // re-render when call view opens/closes
+    showThreadPanel.value; // re-render when thread panel changes
     forceUpdate(undefined);
   });
   const isDM = serverUrl.value === DM_SERVER_URL;
@@ -73,6 +81,8 @@ export function ChannelList() {
   const voice = voiceState.value;
   const isInVoice = !!voice.currentChannel;
   const myUsername = currentUserByServer.value[serverUrl.value]?.username;
+  const { showThreadMenu, closeThreadMenu, threadMenu } =
+    useThreadContextMenu();
 
   // When the voice call view is open for a dedicated voice channel (not a chat
   // channel), suppress the text-channel active highlight so only the voice
@@ -87,6 +97,8 @@ export function ChannelList() {
   const handleChannelClick = (channel: any) => {
     if (channel.type === "voice") {
       voiceManager.joinChannel(channel.name, myUsername);
+    } else if (channel.type === "forum") {
+      selectChannel(channel);
     } else {
       selectChannel(channel);
     }
@@ -329,6 +341,67 @@ export function ChannelList() {
             );
           }
 
+          const isForum = channel.type === "forum";
+          const forumThreads = isForum
+            ? threadsByServer.value[serverUrl.value]?.[channel.name] || []
+            : [];
+          // Filter to only show recent threads (past 7 days)
+          const now = Date.now() / 1000;
+          const sevenDaysAgo = now - 7 * 24 * 60 * 60;
+          const recentThreads = forumThreads.filter(
+            (t: any) => t.created_at >= sevenDaysAgo,
+          );
+
+          if (isForum) {
+            const ch = currentChannel.value as any;
+            const isForumSelected =
+              ch?.name === channel.name || ch?.parent_channel === channel.name;
+            const isThreadSelected =
+              currentThread.value?.id !== undefined &&
+              ch?.parent_channel === channel.name;
+
+            return (
+              <div key={channel.name}>
+                <div
+                  className={`channel-item ${!voiceChannelActive && isForumSelected ? "active" : ""}`}
+                  onClick={() => handleChannelClick(channel)}
+                  onContextMenu={(e: any) =>
+                    handleChannelContextMenu(e, channel)
+                  }
+                >
+                  <Icon name="MessageCircle" size={18} />
+                  <span>{displayName}</span>
+                  {forumThreads.length > 0 && (
+                    <span className="thread-count">{forumThreads.length}</span>
+                  )}
+                </div>
+                {recentThreads.map((thread: any) => (
+                  <div
+                    key={thread.id}
+                    className={`channel-item thread-item ${!voiceChannelActive && currentThread.value?.id === thread.id ? "active" : ""}`}
+                    onClick={(e: any) => {
+                      e.stopPropagation();
+                      selectThread(thread);
+                      wsSend(
+                        { cmd: "thread_messages", thread_id: thread.id },
+                        serverUrl.value,
+                      );
+                    }}
+                    onContextMenu={(e: any) => showThreadMenu(e, thread)}
+                  >
+                    <Icon name="CornerDownRight" size={15} />
+                    <span className="thread-name">{thread.name}</span>
+                    {thread.locked && (
+                      <span className="thread-locked-icon">
+                        <Icon name="Lock" size={12} />
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          }
+
           return (
             <div
               key={channel.name}
@@ -424,6 +497,14 @@ export function ChannelList() {
       )}
 
       <UserPanel />
+      {threadMenu && (
+        <ThreadContextMenu
+          thread={threadMenu.thread}
+          x={threadMenu.x}
+          y={threadMenu.y}
+          onClose={closeThreadMenu}
+        />
+      )}
     </div>
   );
 }

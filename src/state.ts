@@ -10,6 +10,7 @@ import type {
   SlashCommand,
   RoturGroup,
   RoturStatusUpdate,
+  Thread,
 } from "./types";
 import { settings as dbSettings } from "./lib/db";
 
@@ -26,6 +27,7 @@ export const SPECIAL_CHANNELS = new Set([
 export const serverUrl = signal(DM_SERVER_URL);
 export const priorityServer = signal<string | null>(null);
 export const currentChannel = signal<Channel | null>(null);
+export const currentThread = signal<Thread | null>(null);
 export const servers = signal<Server[]>([]);
 export const dmServers = signal<DMServer[]>([]);
 export const friends = signal<string[]>([]);
@@ -35,6 +37,12 @@ export const replyTo = signal<Message | null>(null);
 export const replyPing = signal<boolean>(true);
 
 export const channelsByServer = signal<Record<string, Channel[]>>({});
+export const threadsByServer = signal<Record<string, Record<string, Thread[]>>>(
+  {},
+);
+export const threadMessagesByServer = signal<
+  Record<string, Record<string, Message[]>>
+>({});
 export const messagesByServer = signal<
   Record<string, Record<string, Message[]>>
 >({});
@@ -161,6 +169,81 @@ export function hasCapability(cap: string): boolean {
 
 export function setChannelsForServer(url: string, ch: Channel[]) {
   channelsByServer.value = { ...channelsByServer.value, [url]: ch };
+}
+
+export function setThreadsForServer(
+  url: string,
+  threads: Record<string, Thread[]>,
+) {
+  threadsByServer.value = { ...threadsByServer.value, [url]: threads };
+}
+
+export function addThreadToChannel(
+  url: string,
+  channelName: string,
+  thread: Thread,
+) {
+  const current = threadsByServer.value[url] || {};
+  const channelThreads = current[channelName] || [];
+  threadsByServer.value = {
+    ...threadsByServer.value,
+    [url]: {
+      ...current,
+      [channelName]: [...channelThreads, thread],
+    },
+  };
+}
+
+export function removeThreadFromChannel(
+  url: string,
+  channelName: string,
+  threadId: string,
+) {
+  const current = threadsByServer.value[url] || {};
+  const channelThreads = current[channelName] || [];
+  threadsByServer.value = {
+    ...threadsByServer.value,
+    [url]: {
+      ...current,
+      [channelName]: channelThreads.filter((t) => t.id !== threadId),
+    },
+  };
+}
+
+export function updateThreadInChannel(
+  url: string,
+  channelName: string,
+  threadId: string,
+  update: Partial<Thread>,
+) {
+  const current = threadsByServer.value[url] || {};
+  const channelThreads = current[channelName] || [];
+  const idx = channelThreads.findIndex((t) => t.id === threadId);
+  if (idx !== -1) {
+    const updated = [...channelThreads];
+    updated[idx] = { ...updated[idx], ...update };
+    threadsByServer.value = {
+      ...threadsByServer.value,
+      [url]: {
+        ...current,
+        [channelName]: updated,
+      },
+    };
+  }
+}
+
+export function setThreadMessagesForServer(
+  url: string,
+  threadId: string,
+  msgs: Message[],
+) {
+  threadMessagesByServer.value = {
+    ...threadMessagesByServer.value,
+    [url]: {
+      ...threadMessagesByServer.value[url],
+      [threadId]: msgs,
+    },
+  };
 }
 
 export function setMessagesForServer(

@@ -65,8 +65,10 @@ export const currentDMTab = signal<
 export const showVoiceCallView = signal(false);
 
 export const rightPanelView = signal<
-  "members" | "pinned" | "search" | "inbox" | null
+  "members" | "pinned" | "search" | "inbox" | "threads" | null
 >("members");
+
+export const showThreadPanel = signal(false);
 export const pinnedMessages = signal<Message[]>([]);
 export const searchResults = signal<Message[]>([]);
 export const searchLoading = signal(false);

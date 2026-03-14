@@ -1,4 +1,4 @@
-import type { Channel, Message, ServerUser } from "./types";
+import type { Channel, Message, ServerUser, Thread } from "./types";
 
 interface UserConnect {
   cmd: "user_connect";
@@ -7,7 +7,7 @@ interface UserConnect {
 
 interface UserDisconnect {
   cmd: "user_disconnect";
-  user: string;
+  username: string;
 }
 
 interface Ping {
@@ -39,6 +39,7 @@ interface MessageNew {
   cmd: "message_new";
   channel: string;
   message: Message;
+  thread_id?: string;
 }
 
 interface MessageEdit {
@@ -73,6 +74,25 @@ interface Typing {
   user: string;
 }
 
+interface ThreadCreate {
+  cmd: "thread_create";
+  thread: Thread;
+  channel: string;
+  global?: boolean;
+}
+
+interface ThreadDelete {
+  cmd: "thread_delete";
+  thread_id: string;
+  channel: string;
+  global?: boolean;
+}
+
+interface ThreadGet {
+  cmd: "thread_get";
+  thread: Thread;
+}
+
 export type {
   UserConnect,
   UserDisconnect,
@@ -86,4 +106,7 @@ export type {
   MessagePin,
   MessageUnpin,
   Typing,
+  ThreadCreate,
+  ThreadDelete,
+  ThreadGet,
 };

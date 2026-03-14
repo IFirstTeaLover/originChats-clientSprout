@@ -721,6 +721,15 @@ p {
   overflow: hidden;
 }
 
+.main-content-wrapper.thread-panel-with-members {
+  flex-direction: row;
+}
+
+.main-content-wrapper.thread-panel-with-members #members-list {
+  flex: 1;
+  max-width: 300px;
+}
+
 .right-panel {
   display: flex;
   flex-direction: column;
@@ -12822,4 +12831,437 @@ body,
 .offline-retry-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Thread Panel */
+.thread-panel {
+  flex: 1;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.thread-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.thread-panel-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.thread-panel-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thread-panel-close:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.thread-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+
+.thread-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.thread-empty svg {
+  margin-bottom: var(--space-3);
+  opacity: 0.5;
+}
+
+.thread-empty p {
+  margin: 0;
+}
+
+.thread-empty-hint {
+  font-size: 0.875rem;
+  margin-top: var(--space-1);
+}
+
+.thread-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--anim-fast);
+}
+
+.thread-item:hover {
+  background: var(--surface-hover);
+}
+
+.thread-item.active {
+  background: var(--surface-light);
+}
+
+.thread-item-icon {
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+}
+
+.thread-item-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.thread-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.thread-item-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread-item-meta {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.thread-item-locked {
+  color: var(--warning);
+  display: flex;
+  align-items: center;
+}
+
+.thread-item-delete {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity var(--anim-fast);
+}
+
+.thread-item:hover .thread-item-delete {
+  opacity: 1;
+}
+
+.thread-item-delete:hover {
+  color: var(--danger);
+}
+
+.thread-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.thread-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  cursor: pointer;
+  transition: all var(--anim-fast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.thread-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.thread-card.active {
+  border-color: var(--primary);
+  background: var(--surface-light);
+}
+
+.thread-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.thread-card-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.thread-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.thread-card-username {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread-card-time {
+  font-size: 0.625rem;
+  color: var(--text-dim);
+}
+
+.thread-card-locked {
+  color: var(--warning);
+  display: flex;
+  align-items: center;
+}
+
+.thread-card-title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.thread-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+.thread-card-replies {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.thread-card-delete {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: all var(--anim-fast);
+}
+
+.thread-card:hover .thread-card-delete {
+  opacity: 1;
+}
+
+.thread-card-delete:hover {
+  color: var(--danger);
+  background: rgba(var(--danger-rgb), 0.1);
+}
+
+.thread-create {
+  padding: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.thread-create-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface-light);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--anim-fast);
+}
+
+.thread-create-btn:hover {
+  background: var(--surface-hover);
+}
+
+.thread-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.thread-create-form input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.thread-create-form input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.thread-create-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.thread-create-actions button {
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.thread-create-actions button:first-child {
+  background: var(--surface-light);
+  color: var(--text);
+}
+
+.thread-create-actions button:last-child {
+  background: var(--primary);
+  color: #fff;
+}
+
+.thread-create-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Thread View */
+.thread-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+.thread-view-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.thread-view-back {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+}
+
+.thread-view-back:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.thread-view-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+
+.thread-view-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+}
+
+/* Forum channel in channel list */
+.thread-count {
+  margin-left: auto;
+  background: var(--surface-light);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.channel-list .thread-item {
+  position: relative;
+  padding-left: var(--space-7);
+}
+
+.channel-list .thread-item::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--border);
+}
+
+.channel-list .thread-item:first-child::before {
+  height: 50%;
+  top: 50%;
+}
+
+.channel-list .thread-item:last-child::before {
+  height: 50%;
+  bottom: 50%;
+  top: auto;
+}
+
+.channel-list .thread-item .thread-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
 }
