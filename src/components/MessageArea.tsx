@@ -1924,7 +1924,7 @@ export function MessageArea() {
         {Object.entries(reactions).map(([emoji, users]) => {
           if (!users || users.length === 0) return null;
           const hasReacted = users.includes(currentUser.value?.username);
-          const previewUsers = users.slice(0, 3);
+          const previewUsers = users.slice(0, 2);
           const overflow = users.length - previewUsers.length;
           return (
             <span

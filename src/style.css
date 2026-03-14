@@ -3857,7 +3857,7 @@ a {
   flex: 1;
   flex-direction: column;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
 }
 
@@ -5993,6 +5993,7 @@ a {
   left: 50%;
   position: absolute;
   transform: translateX(-50%);
+  max-width: 160px;
 }
 
 .reaction-tooltip::after {
@@ -6765,6 +6766,27 @@ a {
 .chat-image-wrapper {
   display: inline-block;
   position: relative;
+}
+
+.chat-image-wrapper.image-loading {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .chat-fav-btn {
