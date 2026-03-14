@@ -60,6 +60,11 @@ export interface Message {
   ping?: boolean;
   reactions?: Record<string, string[]>;
   interaction?: { command: string; username: string };
+  pings?: {
+    users: string[];
+    roles: string[];
+    replies: string[];
+  };
 }
 
 export interface Server {

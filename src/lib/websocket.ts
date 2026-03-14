@@ -325,8 +325,6 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return arr;
 }
 
-const pingRegex = /@[\w-]+/gi;
-
 const CONNECTION_TIMEOUT = 5000;
 const pendingMessageFetchesByServer: Record<
   string,
@@ -776,12 +774,6 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
           ? msg.val.capabilities
           : DEFAULT_CAPABILITIES,
       };
-      if (Notification.permission === "granted") {
-        const { enablePushForServer } = await import("../lib/websocket");
-        if (!offlinePushServers.value[sUrl]) {
-          enablePushForServer(sUrl);
-        }
-      }
       // Always apply the authoritative icon and name from the handshake so
       // the local cache never gets out of sync with what the server reports.
       if (msg.val.server) {
@@ -806,6 +798,13 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
       }
       renderGuildSidebarSignal.value++;
       await authenticateServer(sUrl);
+
+      if (Notification.permission === "granted") {
+        const { enablePushForServer } = await import("../lib/websocket");
+        if (!offlinePushServers.value[sUrl]) {
+          enablePushForServer(sUrl);
+        }
+      }
       break;
     }
     case "ready":
@@ -1163,6 +1162,25 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
       }
 
       const myUsername = currentUserByServer.value[sUrl]?.username;
+      const myRoles =
+        usersByServer.value[sUrl]?.[myUsername?.toLowerCase() || ""]?.roles ||
+        [];
+      const myRolesLower = myRoles.map((r) => r.toLowerCase());
+      const serverRoles = rolesByServer.value[sUrl] || {};
+      const mentionedRoles = msgNew.message.pings?.roles || [];
+      const isRolePinged = mentionedRoles.some((r) =>
+        myRolesLower.includes(r.toLowerCase()),
+      );
+
+      const isUserPinged =
+        msgNew.message.pings?.users?.some(
+          (u) => u.toLowerCase() === myUsername?.toLowerCase(),
+        ) || false;
+      const isReplyPinged =
+        msgNew.message.pings?.replies?.some(
+          (r) => r.toLowerCase() === myUsername?.toLowerCase(),
+        ) || false;
+
       // Only process mention/reply pings when not muted and not already in "all" mode
       // ("all" already counted every message as a ping above).
       if (
@@ -1171,74 +1189,85 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
         !isMuted &&
         notifLevel !== "all"
       ) {
-        const content = (msgNew.message.content || "").toLowerCase();
-        const matches = content.match(pingRegex);
-        if (matches) {
-          const pings = matches.filter(
-            (m: string) =>
-              m.trim().toLowerCase() === "@" + myUsername.toLowerCase(),
-          );
-          if (pings.length > 0) {
-            if (!isCurrentView) {
-              unreadPings.value = {
-                ...unreadPings.value,
-                [channelKey]: (unreadPings.value[channelKey] || 0) + 1,
-              };
-              if (serverUrl.value === sUrl) renderChannelsSignal.value++;
-            }
-            playPingSound();
-            const cleanContent = (msgNew.message.content || "").replace(
-              /<[^>]*>/g,
-              "",
-            );
-            const notifBody =
-              cleanContent.length > 100
-                ? cleanContent.substring(0, 100) + "..."
-                : cleanContent;
-            showNotification(
-              `${msgNew.message.user} mentioned you in #${msg.channel}`,
-              notifBody,
-              msg.channel,
-            );
-            serverPingsByServer.value = {
-              ...serverPingsByServer.value,
-              [sUrl]: (serverPingsByServer.value[sUrl] || 0) + 1,
+        if (isUserPinged) {
+          if (!isCurrentView) {
+            unreadPings.value = {
+              ...unreadPings.value,
+              [channelKey]: (unreadPings.value[channelKey] || 0) + 1,
             };
-            renderGuildSidebarSignal.value++;
+            if (serverUrl.value === sUrl) renderChannelsSignal.value++;
           }
-        }
-
-        if (
-          msgNew.message.reply_to &&
-          msgNew.message.ping !== false &&
-          messagesByServer.value[sUrl]?.[msgNew.channel]
-        ) {
-          const originalMsg = messagesByServer.value[sUrl][msgNew.channel].find(
-            (m: Message) => m.id === msgNew.message.reply_to?.id,
+          playPingSound();
+          const cleanContent = (msgNew.message.content || "").replace(
+            /<[^>]*>/g,
+            "",
           );
-          if (originalMsg && originalMsg.user === myUsername) {
-            if (!isCurrentView) {
-              unreadPings.value = {
-                ...unreadPings.value,
-                [channelKey]: (unreadPings.value[channelKey] || 0) + 1,
-              };
-              if (serverUrl.value === sUrl) renderChannelsSignal.value++;
-            }
-            playPingSound();
-            const cleanContent = (msgNew.message.content || "").replace(
-              /<[^>]*>/g,
-              "",
-            );
-            const notifBody =
-              cleanContent.length > 100
-                ? cleanContent.substring(0, 100) + "..."
-                : cleanContent;
-            showNotification(
-              `${msgNew.message.user} replied to your message in #${msgNew.channel}`,
-              notifBody,
-              msgNew.channel,
-            );
+          const notifBody =
+            cleanContent.length > 100
+              ? cleanContent.substring(0, 100) + "..."
+              : cleanContent;
+          showNotification(
+            `${msgNew.message.user} mentioned you in #${msg.channel}`,
+            notifBody,
+            msg.channel,
+          );
+          serverPingsByServer.value = {
+            ...serverPingsByServer.value,
+            [sUrl]: (serverPingsByServer.value[sUrl] || 0) + 1,
+          };
+          renderGuildSidebarSignal.value++;
+        } else if (isRolePinged) {
+          if (!isCurrentView) {
+            unreadPings.value = {
+              ...unreadPings.value,
+              [channelKey]: (unreadPings.value[channelKey] || 0) + 1,
+            };
+            if (serverUrl.value === sUrl) renderChannelsSignal.value++;
           }
+          playPingSound();
+          const cleanContent = (msgNew.message.content || "").replace(
+            /<[^>]*>/g,
+            "",
+          );
+          const notifBody =
+            cleanContent.length > 100
+              ? cleanContent.substring(0, 100) + "..."
+              : cleanContent;
+          const pingedRole = mentionedRoles.find((r) =>
+            myRolesLower.includes(r.toLowerCase()),
+          );
+          showNotification(
+            `${msgNew.message.user} mentioned ${pingedRole} in #${msg.channel}`,
+            notifBody,
+            msg.channel,
+          );
+          serverPingsByServer.value = {
+            ...serverPingsByServer.value,
+            [sUrl]: (serverPingsByServer.value[sUrl] || 0) + 1,
+          };
+          renderGuildSidebarSignal.value++;
+        } else if (isReplyPinged) {
+          if (!isCurrentView) {
+            unreadPings.value = {
+              ...unreadPings.value,
+              [channelKey]: (unreadPings.value[channelKey] || 0) + 1,
+            };
+            if (serverUrl.value === sUrl) renderChannelsSignal.value++;
+          }
+          playPingSound();
+          const cleanContent = (msgNew.message.content || "").replace(
+            /<[^>]*>/g,
+            "",
+          );
+          const notifBody =
+            cleanContent.length > 100
+              ? cleanContent.substring(0, 100) + "..."
+              : cleanContent;
+          showNotification(
+            `${msgNew.message.user} replied to your message in #${msgNew.channel}`,
+            notifBody,
+            msgNew.channel,
+          );
         }
       }
 

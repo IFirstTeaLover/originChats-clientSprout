@@ -37,6 +37,11 @@ interface MessageContentProps {
   content: string;
   currentUsername?: string;
   authorUsername?: string;
+  pings?: {
+    users: string[];
+    roles: string[];
+    replies: string[];
+  };
 }
 
 const SINGLE_EMOJI_RE =
@@ -52,6 +57,7 @@ export function MessageContent({
   content,
   currentUsername,
   authorUsername,
+  pings,
 }: MessageContentProps) {
   const [embeds, setEmbeds] = useState<EmbedInfo[]>([]);
   const [inlineImages, setInlineImages] = useState<string[]>([]);
@@ -108,30 +114,20 @@ export function MessageContent({
     const links: string[] = [];
     const parsed = parseMarkdown(content, links, mentionCtx);
     let mentioned = false;
-    if (currentUsername) {
-      const pingRegex = /@[\w-]+/gi;
-      const matches = content.toLowerCase().match(pingRegex);
-      if (matches) {
-        mentioned = matches.some(
-          (m) => m.trim().toLowerCase() === "@" + currentUsername.toLowerCase(),
-        );
-      }
-      if (!mentioned) {
-        const myRoles =
-          users.value[currentUsername.toLowerCase()]?.roles?.map((r) =>
-            r.toLowerCase(),
-          ) ?? [];
-        if (myRoles.length > 0) {
-          const rolePingRegex = /@&([\w-]+)/gi;
-          let m: RegExpExecArray | null;
-          while ((m = rolePingRegex.exec(content)) !== null) {
-            if (myRoles.includes(m[1].toLowerCase())) {
-              mentioned = true;
-              break;
-            }
-          }
-        }
-      }
+    if (currentUsername && pings) {
+      const currentUsernameLower = currentUsername.toLowerCase();
+      const myRoles =
+        users.value[currentUsernameLower]?.roles?.map((r) => r.toLowerCase()) ??
+        [];
+      const myRolesLower = new Set(myRoles);
+      const mentionedRolesLower = (pings.roles || []).map((r) =>
+        r.toLowerCase(),
+      );
+
+      mentioned =
+        (pings.users || []).some(
+          (u) => u.toLowerCase() === currentUsernameLower,
+        ) || mentionedRolesLower.some((r) => myRolesLower.has(r));
     }
     return {
       html: DOMPurify.sanitize(parsed, { ADD_ATTR: ["target"] }),

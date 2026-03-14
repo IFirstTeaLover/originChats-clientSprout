@@ -66,6 +66,7 @@ export function MessageGroupRow({
             content={group.head.content}
             currentUsername={currentUser.value?.username}
             authorUsername={group.head.user}
+            pings={group.head.pings}
           />
         </div>
         {group.following.length > 0 && (
@@ -79,6 +80,7 @@ export function MessageGroupRow({
                   content={msg.content}
                   currentUsername={currentUser.value?.username}
                   authorUsername={msg.user}
+                  pings={msg.pings}
                 />
               </div>
             ))}

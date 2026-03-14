@@ -16,6 +16,11 @@ interface NoteMessage {
   timestamp: number;
   edited?: boolean;
   _isNew?: boolean;
+  pings?: {
+    users: string[];
+    roles: string[];
+    replies: string[];
+  };
 }
 
 interface NoteGroup {
@@ -245,6 +250,7 @@ export function NotesTab() {
                           <MessageContent
                             content={note.content}
                             currentUsername={currentUser.value?.username}
+                            pings={note.pings}
                           />
                         </div>
                       </>
@@ -254,6 +260,7 @@ export function NotesTab() {
                         <MessageContent
                           content={note.content}
                           currentUsername={currentUser.value?.username}
+                          pings={note.pings}
                         />
                       </div>
                     )}

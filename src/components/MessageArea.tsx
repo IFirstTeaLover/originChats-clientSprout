@@ -268,6 +268,7 @@ function RightPanelMessageCard({ msg }: { msg: any }) {
           content={msg.content}
           currentUsername={currentUser.value?.username}
           authorUsername={msg.user}
+          pings={msg.pings}
         />
       </div>
       <div className="right-panel-message-actions">
@@ -1876,6 +1877,7 @@ export function MessageArea() {
                         content={msg.content}
                         currentUsername={currentUser.value?.username}
                         authorUsername={msg.user}
+                        pings={msg.pings}
                       />
                       {msg.edited && (
                         <span className="edited-indicator">(edited)</span>
@@ -1892,6 +1894,7 @@ export function MessageArea() {
                   content={msg.content}
                   currentUsername={currentUser.value?.username}
                   authorUsername={msg.user}
+                  pings={msg.pings}
                 />
                 {msg.edited && (
                   <span className="edited-indicator">(edited)</span>
