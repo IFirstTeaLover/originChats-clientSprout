@@ -3151,7 +3151,7 @@ img.tenor-gif {
     border-radius: var(--radius-md);
     margin: 0;
     max-width: 100%;
-    padding: auto var(--space-4);
+    padding: var(--space-4);
     padding-top: 50%;
     width: 100%;
     height: 100%;
