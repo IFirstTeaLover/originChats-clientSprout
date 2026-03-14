@@ -108,3 +108,5 @@ export function showContextMenu(e: MouseEvent, items: ContextMenuItem[]) {
 export function closeContextMenu() {
   globalContextMenu.value = null;
 }
+
+export const showNotificationPrompt = signal(false);

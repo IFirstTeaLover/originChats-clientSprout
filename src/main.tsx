@@ -29,6 +29,7 @@ import {
   offlinePushServers,
   serverNotifSettings,
   channelNotifSettings,
+  notificationPromptDismissed,
 } from "./state";
 
 import {
@@ -41,6 +42,7 @@ import {
   mobilePanelOpen,
   closeMobileNav,
   showThreadPanel,
+  showNotificationPrompt,
 } from "./lib/ui-signals";
 import {
   loadServers,
@@ -49,10 +51,7 @@ import {
 } from "./lib/persistence";
 import { OriginFSClientClass } from "./originFSKit";
 import { connectToServer } from "./lib/websocket";
-import {
-  requestNotificationPermission,
-  setupVisibilityHandler,
-} from "./lib/websocket";
+import { setupVisibilityHandler } from "./lib/websocket";
 import {
   selectHomeChannel,
   selectChannel,
@@ -77,6 +76,7 @@ import {
   SettingsModal,
   AccountModal,
   DiscoveryModal,
+  NotificationPromptModal,
 } from "./components/Modals";
 import { ServerSettingsModal } from "./components/ServerSettings";
 import { UserPopout } from "./components/UserPopout";
@@ -250,7 +250,16 @@ function App() {
     });
 
     await loadShortcodes();
-    requestNotificationPermission();
+
+    // Show notification prompt on new device if notifications are disabled and user hasn't dismissed
+    if (
+      "Notification" in window &&
+      Notification.permission === "default" &&
+      !notificationPromptDismissed.value
+    ) {
+      showNotificationPrompt.value = true;
+    }
+
     setupVisibilityHandler();
 
     const pendingServer = sessionStorage.getItem("pendingServerJoin") ?? null;
@@ -370,6 +379,7 @@ function App() {
       )}
       {showDiscoveryModal.value && <DiscoveryModal />}
       {showServerSettingsModal.value && <ServerSettingsModal />}
+      <NotificationPromptModal />
       <UserPopout />
       <GlobalContextMenu />
     </div>

@@ -445,6 +445,8 @@ export const compactMode = signal<boolean>(false);
 
 export const showTimestamps = signal<boolean>(true);
 
+export const notificationPromptDismissed = signal<boolean>(false);
+
 export const showEditedIndicator = signal<boolean>(true);
 
 export const maxInlineImageWidth = signal<number>(400);
@@ -708,6 +710,10 @@ export async function initSettingsFromDb(): Promise<void> {
     await s.get<string>("showTimestamps", undefined),
     true,
   );
+  notificationPromptDismissed.value = bool(
+    await s.get<string>("notificationPromptDismissed", undefined),
+    false,
+  );
   showEditedIndicator.value = bool(
     await s.get<string>("showEdited", undefined),
     true,
@@ -824,6 +830,14 @@ effect(() => {
   if (_settingsLoaded)
     dbSettings.set("showTimestamps", String(showTimestamps.value));
   document.body.classList.toggle("hide-timestamps", !showTimestamps.value);
+});
+
+effect(() => {
+  if (_settingsLoaded)
+    dbSettings.set(
+      "notificationPromptDismissed",
+      String(notificationPromptDismissed.value),
+    );
 });
 
 effect(() => {

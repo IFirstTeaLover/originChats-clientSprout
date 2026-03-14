@@ -2702,7 +2702,6 @@ body.font-serif {
   margin-top: 8px;
 }
 
-
 /* ============================================================
    NOTIFICATIONS TAB — sound list, blocked options
    ============================================================ */
@@ -3132,4 +3131,67 @@ img.tenor-gif {
 .standing-card-normal,
 .standing-card-neutral {
   background: var(--surface-2, var(--surface));
+}
+
+/* ── Notification Prompt Modal ───────────────────────────────────────────── */
+.notification-prompt-modal {
+  animation: slideInCenter var(--anim-normal) var(--ease-out);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  max-width: 440px;
+  padding: var(--space-7) var(--space-6);
+  text-align: center;
+  width: 90%;
+}
+
+.notification-prompt-icon {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  border-radius: 50%;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 72px;
+  margin: 0 auto var(--space-5);
+  width: 72px;
+}
+
+.notification-prompt-icon svg {
+  height: 32px;
+  width: 32px;
+}
+
+.notification-prompt-title {
+  color: var(--text);
+  font-size: var(--font-2xl);
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: var(--space-3);
+}
+
+.notification-prompt-text {
+  color: var(--text-dim);
+  font-size: var(--font-md);
+  line-height: 1.5;
+  margin-bottom: var(--space-6);
+}
+
+.notification-prompt-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.notification-prompt-buttons .btn {
+  width: 100%;
+}
+
+.notification-prompt-buttons .btn-primary {
+  background-color: var(--primary);
+}
+
+.notification-prompt-buttons .btn-primary:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--mention) 85%, white);
 }

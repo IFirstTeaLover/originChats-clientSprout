@@ -4,9 +4,11 @@ import {
   showAccountModal,
   showDiscoveryModal,
   showServerSettingsModal,
+  showNotificationPrompt,
 } from "../lib/ui-signals";
+import { notificationPromptDismissed, servers } from "../state";
+import { connectToServer, enablePushForServer } from "../lib/websocket";
 import {
-  servers,
   serverUrl,
   usersByServer,
   currentUser,
@@ -2383,6 +2385,56 @@ export function DiscoveryModal() {
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+export function NotificationPromptModal() {
+  if (!showNotificationPrompt.value) return null;
+
+  const handleEnable = async () => {
+    showNotificationPrompt.value = false;
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      for (const server of servers.value) {
+        enablePushForServer(server.url);
+      }
+    }
+  };
+
+  const handleNo = () => {
+    showNotificationPrompt.value = false;
+    notificationPromptDismissed.value = true;
+  };
+
+  return (
+    <div
+      className="server-settings-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleNo();
+      }}
+    >
+      <div className="notification-prompt-modal">
+        <div className="notification-prompt-icon">
+          <Icon name="Bell" size={32} />
+        </div>
+        <h2 className="notification-prompt-title">
+          Enable notifications for the best experience
+        </h2>
+        <p className="notification-prompt-text">
+          You'll never miss a message when notifications are enabled. Get
+          instant alerts for mentions and direct messages, even when the tab is
+          closed.
+        </p>
+        <div className="notification-prompt-buttons">
+          <button className="btn btn-primary" onClick={handleEnable}>
+            Enable Notifications
+          </button>
+          <button className="btn btn-secondary" onClick={handleNo}>
+            Not Now
+          </button>
+        </div>
       </div>
     </div>
   );
