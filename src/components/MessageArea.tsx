@@ -880,7 +880,7 @@ function SwipeableMessage({
     e.preventDefault();
 
     // Determine direction semantics
-    const dir = dx > 0 ? (canReply ? "reply" : null) : canEdit ? "edit" : null;
+    const dir = dx > 0 ? (canEdit ? "edit" : null) : canReply ? "reply" : null;
     if (!dir) {
       // No action for this direction — allow very small rubber band then stop
       const clamped = dx < 0 ? Math.max(dx * 0.15, -16) : 0;
@@ -912,6 +912,11 @@ function SwipeableMessage({
       triggered.current = true;
       setTriggered2(true);
       if (navigator.vibrate) navigator.vibrate(12);
+    }
+    // Cancel trigger if dragged back below threshold
+    if (triggered.current && Math.abs(newX) < SWIPE_THRESHOLD) {
+      triggered.current = false;
+      setTriggered2(false);
     }
   };
 
@@ -947,7 +952,7 @@ function SwipeableMessage({
       : actionDir === "reply"
         ? "var(--mention)"
         : "var(--text-dim)";
-  const iconSide = actionDir === "edit" ? "right" : "left";
+  const iconSide = actionDir === "edit" ? "left" : "right";
 
   return (
     <div
@@ -2075,9 +2080,12 @@ export function MessageArea() {
               replyMessage={replyTo.value || undefined}
               editMessage={editingMessage || undefined}
               onClose={() => {
-                replyTo.value = null;
-                replyPing.value = true;
-                setEditingMessage(null);
+                if (editingMessage) {
+                  cancelEdit();
+                } else {
+                  replyTo.value = null;
+                  replyPing.value = true;
+                }
               }}
             />
           )}

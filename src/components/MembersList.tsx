@@ -79,9 +79,9 @@ export function MembersList() {
 
   const hoistedSections = hoistedRoles
     .map(({ name, color }) => {
-      const members = memberList.filter(
-        (m) => m.status === "online" && getHoistedRole(m) === name,
-      );
+      const members = memberList
+        .filter((m) => m.status === "online" && getHoistedRole(m) === name)
+        .sort((a, b) => a.username.localeCompare(b.username));
       members.forEach((m) => assignedToHoisted.add(m.username));
       return { roleName: name, color, members };
     })
@@ -90,8 +90,12 @@ export function MembersList() {
   const remainder = memberList.filter(
     (m) => !assignedToHoisted.has(m.username),
   );
-  const onlineRemainder = remainder.filter((u) => u.status === "online");
-  const offlineRemainder = remainder.filter((u) => u.status !== "online");
+  const onlineRemainder = remainder
+    .filter((u) => u.status === "online")
+    .sort((a, b) => a.username.localeCompare(b.username));
+  const offlineRemainder = remainder
+    .filter((u) => u.status !== "online")
+    .sort((a, b) => a.username.localeCompare(b.username));
 
   const totalOnline =
     hoistedSections.reduce((sum, s) => sum + s.members.length, 0) +
