@@ -12928,7 +12928,7 @@ body,
   align-items: center;
   gap: var(--space-3);
   border-radius: var(--radius-sm);
-  padding-left: 17px;
+  padding-left: 30px;
   cursor: pointer;
   transition: background var(--anim-fast);
 }
@@ -13245,14 +13245,6 @@ body,
 }
 
 /* Forum channel in channel list */
-.thread-count {
-  margin-left: auto;
-  background: var(--surface-light);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  font-size: 0.75rem;
-  color: var(--text-dim);
-}
 
 .channel-list .thread-item {
   position: relative;

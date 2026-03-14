@@ -371,9 +371,6 @@ export function ChannelList() {
                 >
                   <Icon name="MessageCircle" size={18} />
                   <span>{displayName}</span>
-                  {forumThreads.length > 0 && (
-                    <span className="thread-count">{forumThreads.length}</span>
-                  )}
                 </div>
                 {recentThreads.map((thread: any) => (
                   <div
