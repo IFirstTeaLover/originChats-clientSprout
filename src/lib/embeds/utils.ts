@@ -1,3 +1,5 @@
+import { imageCache } from "../image-cache";
+
 const YOUTUBE_REGEX =
   /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]+)/;
 const IMAGE_EXTENSIONS = [
@@ -118,6 +120,7 @@ export async function detectEmbedType(url: string) {
     return { type: "video", url };
   }
   if (hasExtension(url, IMAGE_EXTENSIONS) || url.startsWith("data:image/")) {
+    imageCache.load(proxyImageUrl(url));
     return { type: "image", url };
   }
 
@@ -133,7 +136,10 @@ export async function detectEmbedType(url: string) {
     if (res.ok) {
       const ct = res.headers.get("Content-Type") || "";
       if (ct.startsWith("video/")) return { type: "video", url };
-      if (ct.startsWith("image/")) return { type: "image", url };
+      if (ct.startsWith("image/")) {
+        imageCache.load(proxyImageUrl(url));
+        return { type: "image", url };
+      }
     }
   } catch (err) {
     console.debug("HEAD request failed for", url, err);

@@ -240,7 +240,7 @@ export function parseMarkdown(
     }
 
     if (hasExtension(rawUrl, IMAGE_EXTENSIONS)) {
-      return `<img src="${proxyImageUrl(safeUrl)}" alt="image" class="message-image" data-image-url="${safeDisplayText}">`;
+      return `<div class="image-placeholder" data-image-url="${safeUrl}"></div>`;
     }
 
     return `<a href="${safeUrl}" class="potential-image" target="_blank" rel="noopener noreferrer" data-image-url="${safeDisplayText}">${safeDisplayText}</a>`;

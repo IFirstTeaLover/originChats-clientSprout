@@ -10,6 +10,7 @@ import {
 import { Embed } from "../lib/embeds/index";
 import type { EmbedInfo } from "../lib/embeds/types";
 import { users, channels, rolesByServer, serverUrl } from "../state";
+import { imageCache } from "../lib/image-cache";
 
 const IMAGE_EXTENSIONS = [
   "jpg",
@@ -199,11 +200,40 @@ export function MessageContent({
       const wrapper = document.createElement("div");
       wrapper.className = "chat-image-wrapper";
 
+      const cached = imageCache.get(url);
+      if (cached) {
+        const maxWidth = 400;
+        const maxHeight = 300;
+        let width = cached.width;
+        let height = cached.height;
+        const aspectRatio = width / height;
+
+        if (width > maxWidth) {
+          width = maxWidth;
+          height = width / aspectRatio;
+        }
+        if (height > maxHeight) {
+          height = maxHeight;
+          width = height * aspectRatio;
+        }
+
+        wrapper.style.minWidth = `${Math.round(width)}px`;
+        wrapper.style.minHeight = `${Math.round(height)}px`;
+      }
+
       const img = document.createElement("img");
       img.src = proxyImageUrl(url);
       img.alt = "image";
       img.className = "message-image";
       img.dataset.imageUrl = url;
+
+      if (!cached) {
+        img.onload = () => {
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            imageCache.set(url, img.naturalWidth, img.naturalHeight);
+          }
+        };
+      }
 
       wrapper.appendChild(img);
       link.textContent = "";
@@ -212,6 +242,67 @@ export function MessageContent({
       link.removeAttribute("data-image-url");
     });
   }, [inlineImages]);
+
+  useEffect(() => {
+    if (!messageTextRef.current) return;
+
+    const messageText = messageTextRef.current;
+    const placeholders = messageText.querySelectorAll<HTMLDivElement>(
+      "div.image-placeholder",
+    );
+
+    placeholders.forEach((placeholder) => {
+      const url = placeholder.dataset.imageUrl;
+      if (!url) return;
+
+      if (placeholder.dataset.processed) return;
+
+      placeholder.className = "chat-image-wrapper";
+      placeholder.removeAttribute("data-image-url");
+      placeholder.dataset.processed = "true";
+
+      const cached = imageCache.get(url);
+      if (cached) {
+        const maxWidth = 400;
+        const maxHeight = 300;
+        let width = cached.width;
+        let height = cached.height;
+        const aspectRatio = width / height;
+
+        if (width > maxWidth) {
+          width = maxWidth;
+          height = width / aspectRatio;
+        }
+        if (height > maxHeight) {
+          height = maxHeight;
+          width = height * aspectRatio;
+        }
+
+        placeholder.style.minWidth = `${Math.round(width)}px`;
+        placeholder.style.minHeight = `${Math.round(height)}px`;
+      } else {
+        placeholder.style.minWidth = "200px";
+        placeholder.style.minHeight = "150px";
+      }
+
+      const img = document.createElement("img");
+      img.src = proxyImageUrl(url);
+      img.alt = "image";
+      img.className = "message-image";
+      img.dataset.imageUrl = url;
+      img.loading = "lazy";
+
+      if (!cached) {
+        img.onload = () => {
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            imageCache.set(url, img.naturalWidth, img.naturalHeight);
+          }
+        };
+      }
+
+      placeholder.appendChild(img);
+    });
+  }, [html]);
 
   return (
     <>
