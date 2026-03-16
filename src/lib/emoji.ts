@@ -71,9 +71,15 @@ export function parseEmojisInContainer(container: HTMLElement): void {
 export function emojiImgUrl(value: string, isChar = false): string | null {
   if (useSystemEmojis.value) return null;
 
-  const hexcode = isChar
-    ? twemoji.convert.toCodePoint(value).toLowerCase()
-    : value.toLowerCase();
+  let hexcode: string;
+  if (isChar) {
+    hexcode = Array.from(value)
+      .map((c) => c.codePointAt(0)!.toString(16))
+      .filter((h) => h !== "fe0f")
+      .join("-");
+  } else {
+    hexcode = value.toLowerCase();
+  }
 
   return `${TWEMOJI_CDN_BASE}/${hexcode}.svg`;
 }
