@@ -1,0 +1,109 @@
+:root {
+  --bg: #050505;
+  --surface: #0a0a0c;
+  --surface-light: #141419;
+  --surface-hover: #1f1f26;
+  --border: #2a2a33;
+  --text: #ededed;
+  --text-dim: #a0a0a0;
+  --primary: #4e5058;
+  --primary-hover: #586068;
+  --danger: #ed4245;
+  --warning: #faa61a;
+  --success: #3ba55c;
+  --link: #00a8fc;
+  --mention: #9b87f5;
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+  --font-main: "gg sans", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  --message-font-size: 15px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --border-radius: var(--radius-md);
+  --chat-radius: var(--radius-lg);
+  --avatar-radius: 50%;
+
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 56px;
+  --space-11: 64px;
+
+  --anim-instant: 100ms;
+  --anim-fast: 120ms;
+  --anim-normal: 180ms;
+  --anim-slow: 240ms;
+  --anim-slower: 300ms;
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --shadow-1: 0 8px 16px rgba(0, 0, 0, 0.45);
+  --shadow-2: 0 12px 24px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 20px 40px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 4px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.7);
+
+  --layer-app-bg: var(--bg);
+  --layer-sidebar-bg: var(--surface-light);
+  --layer-panel-bg: var(--surface);
+  --layer-subtle-bg: color-mix(
+    in srgb,
+    var(--surface-light) 70%,
+    var(--surface) 30%
+  );
+
+  --z-base: 1;
+  --z-dropdown: 1000;
+  --z-sticky: 100;
+  --z-fixed: 1000;
+  --z-modal-backdrop: 10000;
+  --z-modal: 10001;
+  --z-popover: 10002;
+  --z-tooltip: 10003;
+  --z-context-menu: 10010;
+
+  --font-xs: 11px;
+  --font-sm: 12px;
+  --font-base: 13px;
+  --font-md: 14px;
+  --font-lg: 15px;
+  --font-xl: 16px;
+  --font-2xl: 18px;
+  --font-3xl: 24px;
+
+  --size-icon-xs: 16px;
+  --size-icon-sm: 18px;
+  --size-icon-md: 20px;
+  --size-icon-lg: 24px;
+  --size-icon-xl: 32px;
+
+  --size-avatar-xs: 24px;
+  --size-avatar-sm: 28px;
+  --size-avatar-md: 32px;
+  --size-avatar-lg: 40px;
+  --size-avatar-xl: 64px;
+
+  --interactive-hover-bg: rgba(255, 255, 255, 0.05);
+  --interactive-active-bg: rgba(255, 255, 255, 0.08);
+  --interactive-selected-bg: rgba(255, 255, 255, 0.1);
+  --overlay-bg: rgba(0, 0, 0, 0.85);
+
+  --primary-08: rgba(78, 80, 88, 0.08);
+  --primary-10: rgba(78, 80, 88, 0.1);
+  --primary-12: rgba(78, 80, 88, 0.12);
+  --primary-15: rgba(78, 80, 88, 0.15);
+  --primary-20: rgba(78, 80, 88, 0.2);
+  --primary-25: rgba(78, 80, 88, 0.25);
+  --primary-30: rgba(78, 80, 88, 0.3);
+}

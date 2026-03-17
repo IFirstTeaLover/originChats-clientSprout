@@ -33,7 +33,7 @@ import {
 import { CallButton } from "../buttons/CallButton";
 import { wsSend } from "../../lib/websocket";
 import { avatarUrl } from "../../utils";
-import "./Header.css";
+import styles from "./Header.module.css";
 
 const SPECIAL_CHANNELS = new Set(["friends", "requests", "blocked", "groups"]);
 
@@ -122,25 +122,25 @@ export function Header() {
   };
 
   const renderMobileHeader = () => (
-    <div className="header">
+    <div className={styles.header}>
       <button
-        className="menu-btn"
+        className={styles.menuBtn}
         onClick={toggleSidebar}
         aria-label="Toggle navigation"
       >
         <Icon name="Menu" size={24} />
         {totalPings > 0 && !mobileSidebarOpen.value && (
-          <span className="menu-btn-ping-badge">
+          <span className={styles.menuBtnPingBadge}>
             {totalPings > 99 ? "99+" : totalPings}
           </span>
         )}
       </button>
-      <div className="server-info">
-        <div className="header-text">
-          <div className="server-name">
+      <div className={styles["server-info"]}>
+        <div className={styles["header-text"]}>
+          <div className={styles["server-name"]}>
             <span>{currentServer.value?.name || "Direct Messages"}</span>
           </div>
-          <div className="channel-name">
+          <div className={styles["channel-name"]}>
             #
             {currentChannel.value?.display_name ||
               currentChannel.value?.name ||
@@ -148,11 +148,11 @@ export function Header() {
           </div>
         </div>
       </div>
-      <div className="header-actions">
-        {isChatChannel && <CallButton className="header-btn" />}
+      <div className={styles.headerActions}>
+        {isChatChannel && <CallButton className={styles.headerBtn} />}
         {canSearch && (
           <button
-            className={`header-btn ${rightPanelView.value === "search" && mobilePanelOpen.value ? "active" : ""}`}
+            className={`${styles.headerBtn} ${rightPanelView.value === "search" && mobilePanelOpen.value ? styles.active : ""}`}
             onClick={() => togglePanel("search")}
             aria-label="Search"
           >
@@ -161,7 +161,7 @@ export function Header() {
         )}
         {canPin && (
           <button
-            className={`header-btn ${rightPanelView.value === "pinned" && mobilePanelOpen.value ? "active" : ""}`}
+            className={`${styles.headerBtn} ${rightPanelView.value === "pinned" && mobilePanelOpen.value ? styles.active : ""}`}
             onClick={() => togglePanel("pinned")}
             aria-label="Pinned messages"
           >
@@ -170,7 +170,7 @@ export function Header() {
         )}
         {canInbox && (
           <button
-            className={`header-btn ${rightPanelView.value === "inbox" && mobilePanelOpen.value ? "active" : ""}`}
+            className={`${styles.headerBtn} ${rightPanelView.value === "inbox" && mobilePanelOpen.value ? styles.active : ""}`}
             onClick={() => togglePanel("inbox")}
             aria-label="Inbox"
           >
@@ -179,7 +179,7 @@ export function Header() {
         )}
         {!isDM && (
           <button
-            className={`header-btn ${rightPanelView.value === "members" && mobilePanelOpen.value ? "active" : ""}`}
+            className={`${styles.headerBtn} ${rightPanelView.value === "members" && mobilePanelOpen.value ? styles.active : ""}`}
             onClick={() => togglePanel("members")}
             aria-label="Members"
           >
@@ -191,31 +191,31 @@ export function Header() {
   );
 
   const renderDesktopHeader = () => (
-    <div className="main-messages-header">
-      <div className="main-header-left">
+    <div className={styles.mainMessagesHeader}>
+      <div className={styles.mainHeaderLeft}>
         <Icon
           name={ch?.type === "thread" ? "MessageSquare" : "Hash"}
           size={24}
         />
-        <span className="main-header-channel-name">
+        <span className={styles.mainHeaderChannelName}>
           {currentChannel.value?.display_name ||
             currentChannel.value?.name ||
             "home"}
         </span>
         {thread && thread.participants && thread.participants.length > 0 && (
-          <span className="header-thread-participants">
+          <span className={styles.headerThreadParticipants}>
             <Icon name="Users" size={14} />
             {thread.participants.length}
           </span>
         )}
       </div>
-      <div className="main-header-right">
+      <div className={styles.mainHeaderRight}>
         {thread &&
           supportsJoinLeave &&
           !thread.locked &&
           (isThreadParticipant ? (
             <button
-              className="header-thread-btn leave"
+              className={`${styles.headerThreadBtn} ${styles.leave}`}
               onClick={() => leaveThread(thread.id)}
               title="Leave Thread"
             >
@@ -224,7 +224,7 @@ export function Header() {
             </button>
           ) : (
             <button
-              className="header-thread-btn join"
+              className={`${styles.headerThreadBtn} ${styles.join}`}
               onClick={() => joinThread(thread.id)}
               title="Join Thread"
             >
@@ -233,11 +233,11 @@ export function Header() {
             </button>
           ))}
         {isChatChannel && (
-          <CallButton className="header-icon-btn" iconSize={20} />
+          <CallButton className={styles.headerIconBtn} iconSize={20} />
         )}
         {canInbox && (
           <button
-            className={`header-icon-btn ${rightPanelView.value === "inbox" ? "active" : ""}`}
+            className={`${styles.headerIconBtn} ${rightPanelView.value === "inbox" ? styles.active : ""}`}
             onClick={() => togglePanel("inbox")}
             title="Inbox"
           >
@@ -246,7 +246,7 @@ export function Header() {
         )}
         {canPin && (
           <button
-            className={`header-icon-btn ${rightPanelView.value === "pinned" ? "active" : ""}`}
+            className={`${styles.headerIconBtn} ${rightPanelView.value === "pinned" ? styles.active : ""}`}
             onClick={() => togglePanel("pinned")}
             title="Pinned Messages"
           >
@@ -255,7 +255,7 @@ export function Header() {
         )}
         {canSearch && (
           <button
-            className={`header-icon-btn ${rightPanelView.value === "search" ? "active" : ""}`}
+            className={`${styles.headerIconBtn} ${rightPanelView.value === "search" ? styles.active : ""}`}
             onClick={() => togglePanel("search")}
             title="Search"
           >
@@ -264,7 +264,7 @@ export function Header() {
         )}
         {!isDM && (
           <button
-            className={`header-icon-btn ${rightPanelView.value === "members" ? "active" : ""}`}
+            className={`${styles.headerIconBtn} ${rightPanelView.value === "members" ? styles.active : ""}`}
             onClick={() => togglePanel("members")}
             title="Members"
           >
@@ -280,7 +280,7 @@ export function Header() {
               avatarUrl(currentChannel.value?.display_name);
             return (
               <button
-                className={`header-icon-btn ${rightPanelView.value === "members" ? "active" : ""}`}
+                className={`${styles.headerIconBtn} ${rightPanelView.value === "members" ? styles.active : ""}`}
                 onClick={() => togglePanel("members")}
                 title={is1on1 ? "User Profile" : "Members"}
               >

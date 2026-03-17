@@ -1,0 +1,32 @@
+.contextMenuAvatar {
+  border-radius: 50%;
+  height: 48px;
+  width: 48px;
+  object-fit: cover;
+}
+
+.contextMenuInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.contextMenuName {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contextMenuUsername {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.contextMenuStatus {
+  color: var(--text-dim);
+  font-size: 12px;
+}

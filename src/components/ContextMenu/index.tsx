@@ -2,7 +2,7 @@ import { h, ComponentChildren } from "preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import { Icon } from "../Icon";
 import { globalContextMenu, closeContextMenu } from "../../lib/ui-signals";
-import "./ContextMenu.css";
+import styles from "./ContextMenu.module.css";
 
 export interface ContextMenuItem {
   label: string;
@@ -84,15 +84,15 @@ function SubMenuPanel({
   return (
     <div
       ref={menuRef}
-      className="context-menu context-menu--sub"
+      className={`${styles.contextMenu} ${styles.contextMenuSub}`}
       style="position:fixed;display:block;visibility:hidden"
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {header && <div className="context-menu-header">{header}</div>}
+      {header && <div className={styles.contextMenuHeader}>{header}</div>}
       {items.map((item, idx) => {
         if (item.separator)
-          return <div key={idx} className="context-menu-separator" />;
+          return <div key={idx} className={styles.contextMenuSeparator} />;
         const hasChildren = !!item.children?.length;
         return (
           <div
@@ -100,7 +100,7 @@ function SubMenuPanel({
             ref={(el) => {
               itemEls.current[idx] = el;
             }}
-            className={`context-menu-item${item.danger ? " danger" : ""}${hasChildren ? " has-submenu" : ""}`}
+            className={`${styles.contextMenuItem}${item.danger ? ` ${styles.danger}` : ""}${hasChildren ? ` ${styles.hasSubmenu}` : ""}`}
             onMouseEnter={() =>
               onOpenChild(
                 hasChildren ? idx : null,
@@ -126,7 +126,7 @@ function SubMenuPanel({
             )}
             <span>{item.label}</span>
             {hasChildren && (
-              <span className="context-menu-arrow">
+              <span className={styles.contextMenuArrow}>
                 <Icon name="ChevronRight" size={14} />
               </span>
             )}
@@ -223,15 +223,15 @@ export function ContextMenu({
       {/* Root menu */}
       <div
         ref={menuRef}
-        className="context-menu"
+        className={styles.contextMenu}
         style="position:fixed;display:block;visibility:hidden"
         onClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.preventDefault()}
       >
-        {header && <div className="context-menu-header">{header}</div>}
+        {header && <div className={styles.contextMenuHeader}>{header}</div>}
         {items.map((item, idx) => {
           if (item.separator)
-            return <div key={idx} className="context-menu-separator" />;
+            return <div key={idx} className={styles.contextMenuSeparator} />;
           const hasChildren = !!item.children?.length;
           return (
             <div
@@ -239,7 +239,7 @@ export function ContextMenu({
               ref={(el) => {
                 itemEls.current[idx] = el;
               }}
-              className={`context-menu-item${item.danger ? " danger" : ""}${hasChildren ? " has-submenu" : ""}`}
+              className={`${styles.contextMenuItem}${item.danger ? ` ${styles.danger}` : ""}${hasChildren ? ` ${styles.hasSubmenu}` : ""}`}
               onMouseEnter={() =>
                 openSubmenuAt(
                   0,
@@ -266,7 +266,7 @@ export function ContextMenu({
               )}
               <span>{item.label}</span>
               {hasChildren && (
-                <span className="context-menu-arrow">
+                <span className={styles.contextMenuArrow}>
                   <Icon name="ChevronRight" size={14} />
                 </span>
               )}

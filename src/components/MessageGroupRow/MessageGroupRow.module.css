@@ -1,0 +1,129 @@
+.messageGroup {
+  align-items: flex-start;
+  border-radius: var(--radius-md);
+  display: flex;
+  padding: var(--space-1) var(--space-0) var(--space-1) var(--space-2);
+  position: relative;
+  z-index: var(--z-base);
+}
+
+.messageGroup::before {
+  border-radius: var(--radius-md);
+  content: "";
+  height: 100%;
+  left: -8px;
+  position: absolute;
+  top: 0;
+  width: calc(100% + 28px);
+  z-index: -1;
+}
+
+.avatar {
+  border: 2px solid var(--border);
+  border-radius: var(--avatar-radius, 50%);
+  height: 36px;
+  width: 36px;
+  background: var(--surface-light);
+  flex-shrink: 0;
+  transition: border-radius 0.2s ease;
+}
+
+.messageGroup .avatar {
+  border-radius: var(--avatar-radius);
+  cursor: pointer;
+  flex-shrink: 0;
+  height: var(--size-avatar-lg);
+  margin-right: var(--space-3);
+  margin-top: var(--space-1);
+  transition: transform var(--anim-normal) var(--ease-standard);
+  width: var(--size-avatar-lg);
+}
+
+.messageGroup .avatar:hover {
+  transform: scale(1.05);
+}
+
+.messageGroupContent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  overflow: visible;
+  width: 100%;
+}
+
+.messageHeader {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.username {
+  color: var(--text);
+  cursor: pointer;
+  font-size: var(--font-lg);
+  font-weight: 600;
+  transition: color var(--anim-fast) var(--ease-standard);
+}
+
+.messageHeader .username:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+.timestamp {
+  color: var(--text-dim);
+  cursor: default;
+  font-size: var(--font-base);
+  font-weight: 400;
+  transition: color var(--anim-fast) var(--ease-standard);
+}
+
+.messageGroup:hover .timestamp {
+  color: var(--text);
+}
+
+.timestamp:hover {
+  text-decoration: underline;
+}
+
+.messageBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.messageGroupFollowing {
+  margin-top: var(--space-1);
+}
+
+.messageSingle {
+  align-items: flex-start;
+  border-radius: var(--radius-md);
+  display: flex;
+  padding-left: 60px;
+  position: relative;
+  z-index: var(--z-base);
+}
+
+.messageSingle::before {
+  border-radius: var(--radius-md);
+  content: "";
+  height: 100%;
+  left: -60px;
+  position: absolute;
+  top: 0;
+  width: calc(100% + 80px);
+  z-index: -1;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.messageGroup:hover,
+.messageSingle:hover {
+  cursor: default;
+  background-color: var(--interactive-hover-bg);
+}

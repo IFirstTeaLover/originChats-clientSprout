@@ -5,6 +5,7 @@ import { avatarUrl } from "../../utils";
 import { MessageContent } from "../MessageContent";
 import type { Message } from "../../types";
 import { openUserPopout } from "../UserPopout";
+import styles from "./MessageGroupRow.module.css";
 
 export interface MessageGroup {
   head: Message;
@@ -46,8 +47,10 @@ function MessageGroupRowInner({
   const followingMessages = useMemo(
     () =>
       group.following.map((msg) => (
-        <div key={msg.id} className="message-single">
-          <span className="timestamp">{formatRelativeTime(msg.timestamp)}</span>
+        <div key={msg.id} className={styles.messageSingle}>
+          <span className={styles.timestamp}>
+            {formatRelativeTime(msg.timestamp)}
+          </span>
           <MessageContent
             content={msg.content}
             currentUsername={currentUsername}
@@ -61,30 +64,30 @@ function MessageGroupRowInner({
 
   return (
     <div
-      className="message-group"
+      className={styles.messageGroup}
       onClick={onClick}
       onContextMenu={onContextMenu}
     >
       <img
         src={avatarUrl(headUser)}
-        className="avatar clickable"
+        className={`${styles.avatar} ${styles.clickable}`}
         alt={headUser}
         onClick={(e: any) => openUserPopout(e, headUser)}
       />
-      <div className="message-group-content">
-        <div className="message-header">
+      <div className={styles.messageGroupContent}>
+        <div className={styles.messageHeader}>
           <span
-            className="username clickable"
+            className={`${styles.username} ${styles.clickable}`}
             style={{ color }}
             onClick={(e: any) => openUserPopout(e, headUser)}
           >
             {displayName}
           </span>
-          <span className="timestamp">
+          <span className={styles.timestamp}>
             {formatRelativeTime(group.head.timestamp)}
           </span>
         </div>
-        <div className="message-body">
+        <div className={styles.messageBody}>
           <MessageContent
             content={group.head.content}
             currentUsername={currentUsername}
@@ -93,7 +96,9 @@ function MessageGroupRowInner({
           />
         </div>
         {group.following.length > 0 && (
-          <div className="message-group-following">{followingMessages}</div>
+          <div className={styles.messageGroupFollowing}>
+            {followingMessages}
+          </div>
         )}
       </div>
     </div>

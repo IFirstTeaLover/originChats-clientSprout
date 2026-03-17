@@ -1,5 +1,5 @@
 import { Icon } from "../Icon";
-import "./Checkbox.css";
+import styles from "./Checkbox.module.css";
 
 interface CheckboxProps {
   checked: boolean;
@@ -19,31 +19,33 @@ export function Checkbox({
   icon,
 }: CheckboxProps) {
   const input = (
-    <label className={`checkbox-root${disabled ? " disabled" : ""}`}>
+    <label
+      className={`${styles.checkboxRoot}${disabled ? ` ${styles.disabled}` : ""}`}
+    >
       <input
         type="checkbox"
-        className="checkbox-input"
+        className={styles.checkboxInput}
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange((e.target as HTMLInputElement).checked)}
       />
-      <span className="checkbox-box" aria-hidden="true" />
+      <span className={styles.checkboxBox} aria-hidden="true" />
     </label>
   );
 
   if (!label) return input;
 
   return (
-    <label className="appearance-toggle-row">
+    <label className={styles.appearanceToggleRow}>
       {icon && (
-        <span className="appearance-toggle-icon">
+        <span className={styles.appearanceToggleIcon}>
           <Icon name={icon} size={16} />
         </span>
       )}
-      <div className="appearance-toggle-text">
-        <div className="appearance-toggle-title">{label}</div>
+      <div className={styles.appearanceToggleText}>
+        <div className={styles.appearanceToggleTitle}>{label}</div>
         {description && (
-          <div className="appearance-toggle-desc">{description}</div>
+          <div className={styles.appearanceToggleDesc}>{description}</div>
         )}
       </div>
       {input}

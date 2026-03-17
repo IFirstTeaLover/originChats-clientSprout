@@ -1,0 +1,316 @@
+.guildSidebar {
+  display: flex;
+  flex-direction: column;
+  min-width: 72px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px 0;
+  width: 72px;
+}
+
+.guildList {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.guildItem {
+  cursor: pointer;
+  margin: 0 auto;
+}
+
+.guildItem,
+.guildIcon {
+  align-items: center;
+  display: flex;
+  height: var(--space-9);
+  justify-content: center;
+  position: relative;
+  width: var(--space-9);
+}
+
+.guildIcon {
+  background: var(--surface);
+  border-radius: var(--radius-pill);
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  overflow: hidden;
+  transition:
+    background-color var(--anim-normal) var(--ease-standard),
+    border-radius var(--anim-normal) var(--ease-standard),
+    outline-color var(--anim-normal) var(--ease-standard),
+    transform var(--anim-normal) var(--ease-standard),
+    box-shadow var(--anim-normal) var(--ease-standard);
+}
+
+.guildIcon img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.guildIcon svg {
+  color: var(--primary);
+  height: var(--size-icon-lg);
+  transition: color var(--anim-normal) var(--ease-standard);
+  width: var(--size-icon-lg);
+}
+
+.guildPill {
+  background: transparent;
+  border-radius: var(--radius-pill);
+  height: var(--space-2);
+  left: -14px;
+  opacity: 0;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  transition:
+    height var(--anim-normal) var(--ease-standard),
+    background-color var(--anim-normal) var(--ease-standard),
+    opacity var(--anim-normal) var(--ease-standard),
+    box-shadow var(--anim-normal) var(--ease-standard),
+    width var(--anim-normal) var(--ease-standard),
+    border-radius var(--anim-normal) var(--ease-standard);
+  width: 4px;
+}
+
+.guildItem.active .guildPill {
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  height: var(--space-8);
+  opacity: 1;
+}
+
+.guildItem:hover .guildPill {
+  height: var(--space-4);
+  opacity: 1;
+}
+
+.guildUnreadDot {
+  background: #fff;
+  z-index: 2;
+  border-radius: 50%;
+  bottom: -2px;
+  box-shadow: 0 0 0 3px var(--surface);
+  height: 12px;
+  position: absolute;
+  right: -2px;
+  width: 12px;
+}
+
+.guildPingBadge {
+  align-items: center;
+  background: var(--danger, #ed4245);
+  border-radius: 10px;
+  bottom: -4px;
+  box-shadow: 0 0 0 3px var(--surface);
+  color: #fff;
+  display: flex;
+  font-size: 11px;
+  font-weight: 700;
+  height: 18px;
+  justify-content: center;
+  min-width: 18px;
+  padding: 0 4px;
+  position: absolute;
+  right: -6px;
+  z-index: 3;
+}
+
+.guildDivider {
+  background: var(--primary);
+  border-radius: var(--radius-sm);
+  height: var(--space-1);
+  margin: var(--space-2) auto;
+  width: var(--space-6);
+}
+
+.guildItem:hover .guildIcon {
+  background: var(--primary);
+  border-radius: var(--radius-md);
+}
+
+.guildItem:hover .guildIcon svg {
+  color: white;
+}
+
+.guildItem.active .guildIcon {
+  background: var(--primary);
+  border-radius: var(--radius-md);
+}
+
+.guildItem.active .guildIcon svg {
+  color: white;
+}
+
+.homeGuild .guildIcon {
+  background: var(--surface-light);
+}
+
+.homeGuild:hover .guildIcon,
+.homeGuild.active .guildIcon {
+  background: var(--primary);
+}
+
+.homeGuild.serverError .guildIcon {
+  background: var(--surface);
+  border: var(--space-1) solid var(--danger);
+}
+
+.homeGuild.serverDisconnected .guildIcon {
+  outline: 2px solid var(--danger);
+  outline-offset: -2px;
+}
+
+.homeGuild.serverConnecting .guildIcon {
+  outline: 2px solid var(--warning, #faa61a);
+  outline-offset: -2px;
+}
+
+.addGuild .guildIcon {
+  background: var(--surface-light);
+  border: 2px dashed var(--text-dim);
+}
+
+.addGuild .guildIcon svg {
+  color: var(--success);
+}
+
+.addGuild:hover .guildIcon {
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  border-color: var(--success);
+}
+
+.addGuild:hover .guildIcon svg {
+  color: var(--success);
+}
+
+.folderItem {
+  position: relative;
+}
+
+.folderIcon {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  width: 100%;
+  background: var(--surface);
+  border-radius: var(--radius-pill);
+  transition:
+    border-radius var(--anim-normal) var(--ease-standard),
+    background-color var(--anim-normal) var(--ease-standard);
+}
+
+.folderIcon svg {
+  color: var(--text);
+}
+
+.folderItem:hover .folderIcon {
+  border-radius: var(--radius-md);
+}
+
+.folderItem.active .folderIcon {
+  border-radius: var(--radius-md);
+}
+
+.folderItem.active .folderIcon svg {
+  color: #fff;
+}
+
+.folderServers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.folderServer {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto;
+}
+
+.folderServer .guildIcon {
+  width: 36px;
+  height: 36px;
+}
+
+.dragging {
+  opacity: 0.5;
+}
+
+.serverConnecting .guildIcon {
+  outline: 2px solid var(--warning, #faa61a);
+  outline-offset: -2px;
+}
+
+.serverDisconnected .guildIcon {
+  outline: 2px solid var(--danger);
+  outline-offset: -2px;
+}
+
+.server {
+  cursor: pointer;
+  margin: 0 auto;
+}
+
+.dmServer {
+  cursor: pointer;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  .guildSidebar {
+    background: var(--layer-sidebar-bg);
+    bottom: 0;
+    left: 0;
+    padding: 8px 0;
+    position: fixed;
+    top: 0;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    visibility: hidden;
+    width: 56px;
+    z-index: 103;
+  }
+
+  .guildSidebar.open {
+    transform: translateX(0);
+    visibility: visible;
+  }
+
+  .guildList {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 0 8px;
+  }
+
+  .guildItem,
+  .guildIcon {
+    height: 40px;
+    width: 40px;
+  }
+
+  .guildIcon svg {
+    height: 20px;
+    width: 20px;
+  }
+
+  .guildPill {
+    left: -10px;
+    width: 4px;
+  }
+
+  .guildItem.active .guildPill {
+    height: 32px;
+  }
+
+  .guildItem::after {
+    display: none;
+  }
+}

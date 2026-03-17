@@ -1,0 +1,41 @@
+.messageActionButtons {
+  align-items: center;
+  background: var(--surface, #0a0a0c);
+  border-radius: 12px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  padding: 4px;
+  position: absolute;
+  right: 8px;
+  top: -12px;
+  transition: opacity var(--anim-fast) var(--ease-standard);
+  z-index: 5;
+  box-shadow: var(--shadow-1);
+}
+
+.actionBtn {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  outline: none;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+  width: 28px;
+}
+
+.actionBtn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.quickReaction {
+  font-size: 16px;
+}
