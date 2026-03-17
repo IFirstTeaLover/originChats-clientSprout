@@ -1806,18 +1806,6 @@ p {
   margin-bottom: 15px;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .avatar {
   border: 2px solid var(--border);
   border-radius: var(--avatar-radius, 50%);
@@ -1849,10 +1837,6 @@ p {
   margin-bottom: 4px;
 }
 
-.username {
-  font-size: 14px;
-}
-
 .username.clickable,
 .avatar.clickable {
   cursor: pointer;
@@ -1860,10 +1844,6 @@ p {
 
 .username.clickable:hover {
   text-decoration: underline;
-}
-
-.timestamp {
-  font-size: 12px;
 }
 
 .edited-indicator {
@@ -1987,9 +1967,6 @@ blockquote {
     transparent
   ) !important;
   border-left-color: var(--link, #00a8fc) !important;
-}
-
-blockquote {
   cursor: pointer;
   display: block;
   margin-top: 8px;
@@ -2015,6 +1992,27 @@ blockquote {
 
 .message-image:hover {
   box-shadow: 0 0 12px rgba(155, 135, 245, 0.3);
+}
+
+.spoiler {
+  background: var(--border);
+  border-radius: 4px;
+  color: transparent;
+  cursor: pointer;
+  padding: 0 4px;
+  transition:
+    background var(--anim-fast) var(--ease-standard),
+    color var(--anim-fast) var(--ease-standard);
+  user-select: none;
+}
+
+.spoiler:hover {
+  background: var(--primary);
+}
+
+.spoiler.revealed {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
 }
 
 .channel-mention {
@@ -3187,17 +3185,6 @@ a {
   width: 18px;
 }
 
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.6;
-  }
-}
-
 #gif-btn {
   color: var(--text-dim);
   transition: color 0.2s ease;
@@ -3862,22 +3849,6 @@ a {
 
   100% {
     transform: scale(1);
-  }
-}
-
-.highlight-message {
-  animation: messageHighlight 2s ease-out;
-}
-
-@keyframes messageHighlight {
-  0% {
-    background: rgba(155, 135, 245, 0.2);
-    box-shadow: 0 0 20px rgba(155, 135, 245, 0.3);
-  }
-
-  100% {
-    background: transparent;
-    box-shadow: none;
   }
 }
 
@@ -8679,9 +8650,7 @@ body,
   font-size: 16px;
 }
 
-/* for fucks sake delete the useless css*/
-
-@keyframes slideUp {
+@keyframes slideUpFull {
   from {
     transform: translateY(100%);
   }
@@ -8748,38 +8717,6 @@ body,
   font-size: 13px;
   padding: 24px 12px;
   text-align: center;
-}
-
-.voice-control-btn {
-  align-items: center;
-  background-color: rgba(255, 255, 255, 0.1);
-  border: none;
-  border-radius: 6px;
-  color: var(--text, #ededed);
-  cursor: pointer;
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  padding: 10px;
-  transition: all 0.2s ease;
-}
-
-.voice-control-btn:hover {
-  background-color: rgba(255, 255, 255, 0.15);
-  transform: translateY(-1px);
-}
-
-.voice-control-btn.active {
-  background-color: var(--success, #3ba55c);
-}
-
-.voice-control-btn.muted {
-  background-color: var(--danger, #ed4245);
-}
-
-.voice-control-btn i {
-  height: 18px;
-  width: 18px;
 }
 
 .members-list .search-wrapper,

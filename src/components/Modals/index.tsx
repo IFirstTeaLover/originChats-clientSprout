@@ -1574,6 +1574,31 @@ function NotificationsTab() {
   const currentVolume = pingVolume.value;
   const customUri = customPingSound.value;
   const mp3InputRef = useRef<HTMLInputElement>(null);
+  const [notifPermission, setNotifPermission] = useState<
+    "granted" | "denied" | "default" | "unknown"
+  >("unknown");
+
+  useEffect(() => {
+    if ("Notification" in window) {
+      setNotifPermission(Notification.permission);
+      const check = () => setNotifPermission(Notification.permission);
+      navigator.permissions
+        ?.query?.({ name: "notifications" })
+        .then((status) => {
+          status.onchange = check;
+        });
+    }
+  }, []);
+
+  const handleEnablePush = async () => {
+    const permission = await Notification.requestPermission();
+    setNotifPermission(permission);
+    if (permission === "granted") {
+      for (const server of servers.value) {
+        enablePushForServer(server.url);
+      }
+    }
+  };
 
   const handleMp3Upload = (e: Event) => {
     const file = (e.target as HTMLInputElement).files?.[0];
@@ -1589,6 +1614,27 @@ function NotificationsTab() {
 
   return (
     <div className="server-section-body">
+      {/* Push notifications permission */}
+      {"Notification" in window && notifPermission !== "granted" && (
+        <div className="settings-field">
+          <label>Push Notifications</label>
+          <p className="settings-field-hint">
+            {notifPermission === "denied"
+              ? "Push notifications are blocked. Enable them in your browser settings to receive alerts when the tab is closed."
+              : "Enable push notifications to receive alerts for mentions and DMs even when the tab is closed."}
+          </p>
+          {notifPermission !== "denied" && (
+            <button
+              className="btn btn-primary"
+              onClick={handleEnablePush}
+              style={{ marginTop: 8 }}
+            >
+              Enable Push Notifications
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Ping sound */}
       <div className="settings-field">
         <label>Ping Sound</label>
