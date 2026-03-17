@@ -73,10 +73,10 @@ export function emojiImgUrl(value: string, isChar = false): string | null {
 
   let hexcode: string;
   if (isChar) {
-    hexcode = Array.from(value)
-      .map((c) => c.codePointAt(0)!.toString(16))
-      .filter((h) => h !== "fe0f")
-      .join("-");
+    hexcode = twemoji.convert.toCodePoint(value);
+    if (!hexcode.includes("200d")) {
+      hexcode = hexcode.replace(/-?fe0f/gi, "");
+    }
   } else {
     hexcode = value.toLowerCase();
   }
