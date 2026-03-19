@@ -9,11 +9,13 @@ import {
 } from "../../../state";
 import {
   showChannelEditModal,
+  channelEditFromSettings,
   webhooksByServer,
   webhooksLoading,
   handleError,
   showError,
   showInfo,
+  showServerSettingsModal,
 } from "../../../lib/ui-signals";
 import { wsSend } from "../../../lib/websocket";
 import { Icon } from "../../Icon";
@@ -70,14 +72,14 @@ export function ChannelEditModal() {
   const webhooks =
     sUrl && channelName
       ? (webhooksByServer.value[sUrl] || []).filter(
-          (w) => w.channel === channelName,
-        )
+        (w) => w.channel === channelName,
+      )
       : [];
   const webhookToken =
     sUrl && channelName
       ? (webhooksByServer.value[sUrl] || []).find(
-          (w: Webhook) => w.channel === channelName && w.token,
-        )?.token
+        (w: Webhook) => w.channel === channelName && w.token,
+      )?.token
       : null;
 
   useEffect(() => {
@@ -107,6 +109,12 @@ export function ChannelEditModal() {
 
   const close = () => {
     showChannelEditModal.value = null;
+    channelEditFromSettings.value = false;
+  };
+
+  const goBack = () => {
+    showChannelEditModal.value = null;
+    showServerSettingsModal.value = true;
   };
 
   if (!channel) return null;
@@ -255,6 +263,11 @@ export function ChannelEditModal() {
         </div>
         <div className="server-settings-content">
           <div className="server-settings-content-header">
+            {channelEditFromSettings.value && (
+              <button className="server-settings-back" onClick={goBack}>
+                <Icon name="ChevronLeft" size={20} />
+              </button>
+            )}
             <h2>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h2>
             <button className="server-settings-close" onClick={close}>
               <Icon name="X" size={20} />
@@ -418,6 +431,23 @@ export function ChannelEditModal() {
                     }
                   />
                 )}
+              </div>
+
+              <div className="settings-dialog-actions">
+                <button
+                  className="settings-btn-cancel"
+                  onClick={close}
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="settings-btn-confirm"
+                  onClick={handleSaveChannel}
+                  disabled={loading}
+                >
+                  {loading ? "Saving..." : "Save"}
+                </button>
               </div>
             </div>
           )}

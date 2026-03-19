@@ -172,5 +172,7 @@ export const showNotificationPrompt = signal(false);
 export const channelListWidth = signal(340);
 
 export const showChannelEditModal = signal<string | null>(null);
+export const channelEditFromSettings = signal(false);
+export const bannedUsersByServer = signal<Record<string, string[]>>({});
 export const webhooksByServer = signal<Record<string, Webhook[]>>({});
 export const webhooksLoading = signal<Record<string, boolean>>({});

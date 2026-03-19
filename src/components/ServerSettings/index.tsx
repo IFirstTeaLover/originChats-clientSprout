@@ -7,13 +7,244 @@ import {
   rolesByServer,
   currentUser,
 } from "../../state";
-import { showServerSettingsModal } from "../../lib/ui-signals";
+import {
+  showServerSettingsModal,
+  showChannelEditModal,
+  channelEditFromSettings,
+  showInfo,
+  showError,
+  bannedUsersByServer,
+} from "../../lib/ui-signals";
 import { wsSend } from "../../lib/websocket";
 import { Icon } from "../Icon";
 import type { Role, Channel, ServerUser } from "../../types";
 import { avatarUrl } from "../../utils";
 
-type Section = "overview" | "channels" | "roles" | "members";
+type Section = "overview" | "channels" | "roles" | "members" | "bans";
+
+interface UserDetailModal {
+  username: string;
+  tab: "overview" | "roles" | "moderation";
+}
+
+function UserRolesEditor({
+  username,
+  serverRoles,
+  serverUrl: sUrl,
+}: {
+  username: string;
+  serverRoles: Role[];
+  serverUrl: string;
+}) {
+  const member = users.value[username.toLowerCase()];
+  const initialRoles = member?.roles || [];
+  const [assignedRoles, setAssignedRoles] = useState<string[]>(initialRoles);
+  const [showJsonEditor, setShowJsonEditor] = useState(false);
+  const [jsonValue, setJsonValue] = useState(
+    JSON.stringify(initialRoles, null, 2),
+  );
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    setAssignedRoles(initialRoles);
+    setJsonValue(JSON.stringify(initialRoles, null, 2));
+  }, [initialRoles.join(",")]);
+
+  const getRoleColor = (roleName: string): string => {
+    const role = serverRoles.find((r) => r.name === roleName);
+    return role?.color || "#5865F2";
+  };
+
+  const addRole = (roleName: string) => {
+    if (!assignedRoles.includes(roleName)) {
+      const newRoles = [...assignedRoles, roleName];
+      setAssignedRoles(newRoles);
+      setJsonValue(JSON.stringify(newRoles, null, 2));
+    }
+  };
+
+  const removeRole = (roleName: string) => {
+    const newRoles = assignedRoles.filter((r) => r !== roleName);
+    if (newRoles.length === 0) {
+      showError("User must have at least one role");
+      return;
+    }
+    setAssignedRoles(newRoles);
+    setJsonValue(JSON.stringify(newRoles, null, 2));
+  };
+
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = (targetIndex: number) => {
+    if (draggedIndex === null || draggedIndex === targetIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+    const newRoles = [...assignedRoles];
+    const [removed] = newRoles.splice(draggedIndex!, 1);
+    newRoles.splice(targetIndex, 0, removed);
+    setAssignedRoles(newRoles);
+    setJsonValue(JSON.stringify(newRoles, null, 2));
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleJsonSave = () => {
+    try {
+      const parsed = JSON.parse(jsonValue);
+      if (!Array.isArray(parsed)) {
+        showError("Roles must be an array");
+        return;
+      }
+      if (parsed.length === 0) {
+        showError("User must have at least one role");
+        return;
+      }
+      const validRoles = parsed.filter((r: any) => typeof r === "string");
+      setAssignedRoles(validRoles);
+      wsSend(
+        { cmd: "user_roles_set", user: username, roles: validRoles },
+        sUrl,
+      );
+      showInfo("Roles updated");
+      setShowJsonEditor(false);
+    } catch {
+      showError("Invalid JSON");
+    }
+  };
+
+  const handleSave = () => {
+    wsSend(
+      { cmd: "user_roles_set", user: username, roles: assignedRoles },
+      sUrl,
+    );
+    showInfo("Roles updated");
+  };
+
+  const availableRoles = serverRoles.filter(
+    (r) => !assignedRoles.includes(r.name) && r.name !== "owner",
+  );
+
+  return (
+    <div className="user-roles-editor">
+      <div className="user-roles-header">
+        <h4>Assigned Roles</h4>
+        <div className="user-roles-actions">
+          <button
+            className="user-roles-toggle-btn"
+            onClick={() => setShowJsonEditor(!showJsonEditor)}
+          >
+            <Icon name="Code" size={14} />
+            {showJsonEditor ? "Hide JSON" : "Edit JSON"}
+          </button>
+        </div>
+      </div>
+
+      {showJsonEditor ? (
+        <div className="json-editor-section">
+          <textarea
+            className="json-editor-textarea"
+            value={jsonValue}
+            onInput={(e) =>
+              setJsonValue((e.target as HTMLTextAreaElement).value)
+            }
+            spellcheck={false}
+          />
+          <div className="json-editor-actions">
+            <button
+              className="settings-btn-cancel"
+              onClick={() => setShowJsonEditor(false)}
+            >
+              Cancel
+            </button>
+            <button className="settings-btn-confirm" onClick={handleJsonSave}>
+              Save JSON
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="assigned-roles-list">
+            {assignedRoles.map((roleName, index) => (
+              <div
+                key={roleName}
+                className={`assigned-role-item ${draggedIndex === index ? "dragging" : ""} ${dragOverIndex === index ? "drag-over" : ""}`}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e as any, index)}
+                onDrop={() => handleDrop(index)}
+              >
+                <div className="role-drag-handle">
+                  <Icon name="GripVertical" size={14} />
+                </div>
+                <div
+                  className="role-color-dot"
+                  style={{ background: getRoleColor(roleName) }}
+                ></div>
+                <span
+                  className="role-name"
+                  style={{ color: getRoleColor(roleName) }}
+                >
+                  {roleName}
+                </span>
+                {roleName !== "user" && (
+                  <button
+                    className="role-remove-btn"
+                    onClick={() => removeRole(roleName)}
+                  >
+                    <Icon name="X" size={12} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="add-role-section">
+            <h5>Add Role</h5>
+            {availableRoles.length === 0 ? (
+              <div className="no-roles-available">
+                All roles already assigned
+              </div>
+            ) : (
+              <div className="available-roles-grid">
+                {availableRoles.map((role) => (
+                  <button
+                    key={role.name}
+                    className="available-role-btn"
+                    style={{ borderColor: role.color || "#5865F2" }}
+                    onClick={() => addRole(role.name)}
+                  >
+                    <span
+                      className="role-color-dot"
+                      style={{ background: role.color || "#5865F2" }}
+                    ></span>
+                    <span>{role.name}</span>
+                    <Icon name="Plus" size={12} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="user-roles-footer">
+            <button className="settings-btn-confirm" onClick={handleSave}>
+              Save Changes
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function ServerSettingsModal() {
   const [section, setSection] = useState<Section>("overview");
@@ -24,18 +255,44 @@ export function ServerSettingsModal() {
   const [roleDesc, setRoleDesc] = useState("");
   const [roleColor, setRoleColor] = useState("#5865F2");
   const [memberFilter, setMemberFilter] = useState("");
-  const [memberRolesModal, setMemberRolesModal] = useState<string | null>(null);
+  const [channelModalOpen, setChannelModalOpen] = useState(false);
+  const [channelName, setChannelName] = useState("");
+  const [channelType, setChannelType] = useState<
+    "text" | "voice" | "separator"
+  >("text");
+  const [channelDescription, setChannelDescription] = useState("");
+  const [bannedUsers, setBannedUsers] = useState<string[]>([]);
+  const [userDetailModal, setUserDetailModal] =
+    useState<UserDetailModal | null>(null);
+  const [timeoutModal, setTimeoutModal] = useState<string | null>(null);
+  const [timeoutSeconds, setTimeoutSeconds] = useState(300);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [draggedRole, setDraggedRole] = useState<string | null>(null);
+  const [dragOverRole, setDragOverRole] = useState<string | null>(null);
 
   useEffect(() => {
     wsSend({ cmd: "roles_list" }, serverUrl.value);
+    wsSend({ cmd: "users_banned_list" }, serverUrl.value);
   }, []);
 
   useEffect(() => {
     const roles = rolesByServer.value[serverUrl.value];
     if (roles) {
-      setServerRoles(Object.values(roles));
+      setServerRoles(
+        Object.entries(roles).map(([name, role]) => ({
+          name,
+          ...role,
+        })),
+      );
     }
   }, [rolesByServer.value]);
+
+  useEffect(() => {
+    const banned = bannedUsersByServer.value[serverUrl.value];
+    if (banned) {
+      setBannedUsers(banned);
+    }
+  }, [bannedUsersByServer.value]);
 
   const close = () => {
     showServerSettingsModal.value = false;
@@ -78,6 +335,29 @@ export function ServerSettingsModal() {
     setRoleModalOpen(true);
   };
 
+  const openCreateChannel = () => {
+    setChannelName("");
+    setChannelType("text");
+    setChannelDescription("");
+    setChannelModalOpen(true);
+  };
+
+  const handleCreateChannel = () => {
+    if (!channelName.trim()) return;
+    wsSend(
+      {
+        cmd: "channel_create",
+        name: channelName.trim(),
+        type: channelType,
+        description:
+          channelType !== "separator" ? channelDescription.trim() : undefined,
+      },
+      serverUrl.value,
+    );
+    setChannelModalOpen(false);
+    showInfo(`Channel "${channelName}" created`);
+  };
+
   const openEditRole = (role: Role) => {
     setEditingRole(role);
     setRoleName(role.name);
@@ -110,12 +390,14 @@ export function ServerSettingsModal() {
       );
     }
     setRoleModalOpen(false);
+    showInfo(`Role ${editingRole ? "updated" : "created"}`);
   };
 
   const deleteRole = (name: string) => {
     if (["owner", "admin", "user"].includes(name)) return;
     if (confirm(`Delete role "${name}"?`)) {
       wsSend({ cmd: "role_delete", name }, serverUrl.value);
+      showInfo(`Role "${name}" deleted`);
     }
   };
 
@@ -126,12 +408,77 @@ export function ServerSettingsModal() {
   ) => {
     wsSend(
       {
-        cmd: hasRole ? "role_remove" : "role_assign",
-        username,
-        role: roleName,
+        cmd: hasRole ? "user_roles_remove" : "user_roles_add",
+        user: username,
+        roles: [roleName],
       },
       serverUrl.value,
     );
+  };
+
+  const handleUnbanUser = (username: string) => {
+    wsSend({ cmd: "user_unban", user: username }, serverUrl.value);
+    showInfo(`User "${username}" unbanned`);
+  };
+
+  const handleTimeoutUser = (username: string, seconds: number) => {
+    wsSend(
+      { cmd: "user_timeout", user: username, timeout: seconds },
+      serverUrl.value,
+    );
+    showInfo(`User "${username}" timed out for ${seconds} seconds`);
+    setTimeoutModal(null);
+  };
+
+  const handleDeleteUser = (username: string) => {
+    wsSend({ cmd: "user_delete", user: username }, serverUrl.value);
+    showInfo(`User "${username}" deleted`);
+    setConfirmDelete(null);
+    setUserDetailModal(null);
+  };
+
+  const handleRoleDragStart = (roleName: string) => {
+    setDraggedRole(roleName);
+  };
+
+  const handleRoleDragOver = (e: DragEvent, roleName: string) => {
+    e.preventDefault();
+    setDragOverRole(roleName);
+  };
+
+  const handleRoleDrop = (targetRoleName: string) => {
+    if (!draggedRole || draggedRole === targetRoleName) {
+      setDraggedRole(null);
+      setDragOverRole(null);
+      return;
+    }
+
+    const draggedIndex = serverRoles.findIndex((r) => r.name === draggedRole);
+    const targetIndex = serverRoles.findIndex((r) => r.name === targetRoleName);
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedRole(null);
+      setDragOverRole(null);
+      return;
+    }
+
+    const newRoles = [...serverRoles];
+    const [removed] = newRoles.splice(draggedIndex, 1);
+    newRoles.splice(targetIndex, 0, removed);
+    setServerRoles(newRoles);
+
+    wsSend(
+      { cmd: "role_reorder", roles: newRoles.map((r) => r.name) },
+      serverUrl.value,
+    );
+
+    setDraggedRole(null);
+    setDragOverRole(null);
+  };
+
+  const handleRoleDragEnd = () => {
+    setDraggedRole(null);
+    setDragOverRole(null);
   };
 
   return (
@@ -159,29 +506,31 @@ export function ServerSettingsModal() {
             </div>
           </div>
           <nav className="server-settings-nav">
-            {(["overview", "channels", "roles", "members"] as Section[]).map(
-              (s) => (
-                <button
-                  key={s}
-                  className={`server-nav-item ${section === s ? "active" : ""}`}
-                  onClick={() => setSection(s)}
-                >
-                  <Icon
-                    name={
-                      s === "overview"
-                        ? "Info"
-                        : s === "channels"
-                          ? "Hash"
-                          : s === "roles"
-                            ? "Shield"
-                            : "Users"
-                    }
-                    size={16}
-                  />
-                  {s.charAt(0).toUpperCase() + s.slice(1)}
-                </button>
-              ),
-            )}
+            {(
+              ["overview", "channels", "roles", "members", "bans"] as Section[]
+            ).map((s) => (
+              <button
+                key={s}
+                className={`server-nav-item ${section === s ? "active" : ""}`}
+                onClick={() => setSection(s)}
+              >
+                <Icon
+                  name={
+                    s === "overview"
+                      ? "Info"
+                      : s === "channels"
+                        ? "Hash"
+                        : s === "roles"
+                          ? "Shield"
+                          : s === "members"
+                            ? "Users"
+                            : "Ban"
+                  }
+                  size={16}
+                />
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
           </nav>
         </div>
         <div className="server-settings-content">
@@ -230,11 +579,21 @@ export function ServerSettingsModal() {
 
           {section === "channels" && (
             <div className="server-section-body">
+              {isOwner && (
+                <div className="settings-section-actions">
+                  <button
+                    className="settings-action-btn"
+                    onClick={openCreateChannel}
+                  >
+                    <Icon name="Plus" size={16} /> Create Channel
+                  </button>
+                </div>
+              )}
               {channelsList.length === 0 ? (
                 <div className="settings-empty">No channels found</div>
               ) : (
                 <div className="settings-list">
-                  {channelsList.map((channel, idx) => {
+                  {channelsList.map((channel) => {
                     const iconName =
                       channel.type === "voice"
                         ? "Mic"
@@ -242,7 +601,15 @@ export function ServerSettingsModal() {
                           ? "Minus"
                           : "Hash";
                     return (
-                      <div key={channel.name} className="settings-list-item">
+                      <div
+                        key={channel.name}
+                        className="settings-list-item clickable"
+                        onClick={() => {
+                          channelEditFromSettings.value = true;
+                          showChannelEditModal.value = channel.name;
+                          close();
+                        }}
+                      >
                         <div className="settings-item-icon">
                           <Icon name={iconName} size={16} />
                         </div>
@@ -257,6 +624,20 @@ export function ServerSettingsModal() {
                               : ` - ${channel.name}`}
                           </div>
                         </div>
+                        {isOwner && (
+                          <button
+                            className="settings-icon-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              channelEditFromSettings.value = true;
+                              showChannelEditModal.value = channel.name;
+                              close();
+                            }}
+                            title="Edit"
+                          >
+                            <Icon name="Edit3" size={14} />
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -267,14 +648,16 @@ export function ServerSettingsModal() {
 
           {section === "roles" && (
             <div className="server-section-body">
-              <div className="settings-section-actions">
-                <button
-                  className="settings-action-btn"
-                  onClick={openCreateRole}
-                >
-                  <Icon name="Plus" size={16} /> Create Role
-                </button>
-              </div>
+              {isOwner && (
+                <div className="settings-section-actions">
+                  <button
+                    className="settings-action-btn"
+                    onClick={openCreateRole}
+                  >
+                    <Icon name="Plus" size={16} /> Create Role
+                  </button>
+                </div>
+              )}
               {serverRoles.length === 0 ? (
                 <div className="settings-empty">No roles found</div>
               ) : (
@@ -284,7 +667,17 @@ export function ServerSettingsModal() {
                       role.name,
                     );
                     return (
-                      <div key={role.name} className="settings-list-item">
+                      <div
+                        key={role.name}
+                        className={`settings-list-item ${draggedRole === role.name ? "dragging" : ""} ${dragOverRole === role.name ? "drag-over" : ""}`}
+                        draggable={isOwner && !isSystem}
+                        onDragStart={() => handleRoleDragStart(role.name)}
+                        onDragOver={(e) =>
+                          handleRoleDragOver(e as any, role.name)
+                        }
+                        onDrop={() => handleRoleDrop(role.name)}
+                        onDragEnd={handleRoleDragEnd}
+                      >
                         <div
                           className="role-color-dot"
                           style={{ background: role.color || "#5865F2" }}
@@ -300,13 +693,14 @@ export function ServerSettingsModal() {
                             {role.description || "No description"}
                           </div>
                         </div>
-                        <div className="settings-item-actions">
-                          {isSystem ? (
-                            <span className="settings-system-badge">
-                              System
-                            </span>
-                          ) : (
-                            <>
+                        {isSystem ? (
+                          <span className="settings-system-badge">System</span>
+                        ) : (
+                          isOwner && (
+                            <div className="settings-item-actions">
+                              <div className="role-drag-handle">
+                                <Icon name="GripVertical" size={14} />
+                              </div>
                               <button
                                 className="settings-icon-btn"
                                 onClick={() => openEditRole(role)}
@@ -321,9 +715,9 @@ export function ServerSettingsModal() {
                               >
                                 <Icon name="Trash2" size={14} />
                               </button>
-                            </>
-                          )}
-                        </div>
+                            </div>
+                          )
+                        )}
                       </div>
                     );
                   })}
@@ -349,7 +743,13 @@ export function ServerSettingsModal() {
                 {filteredMembers.map((member) => (
                   <div
                     key={member.username}
-                    className="settings-list-item member-row"
+                    className="settings-list-item clickable member-row"
+                    onClick={() =>
+                      setUserDetailModal({
+                        username: member.username,
+                        tab: "overview",
+                      })
+                    }
                   >
                     <img
                       src={avatarUrl(member.username)}
@@ -382,14 +782,53 @@ export function ServerSettingsModal() {
                     </div>
                     <button
                       className="settings-icon-btn"
-                      onClick={() => setMemberRolesModal(member.username)}
-                      title="Manage Roles"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUserDetailModal({
+                          username: member.username,
+                          tab: "overview",
+                        });
+                      }}
+                      title="Manage"
                     >
                       <Icon name="Settings" size={14} />
                     </button>
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {section === "bans" && (
+            <div className="server-section-body">
+              {bannedUsers.length === 0 ? (
+                <div className="settings-empty">No banned users</div>
+              ) : (
+                <div className="settings-list">
+                  {bannedUsers.map((username) => (
+                    <div key={username} className="settings-list-item">
+                      <div className="settings-item-icon">
+                        <Icon name="Ban" size={16} />
+                      </div>
+                      <div className="settings-item-info">
+                        <div className="settings-item-name">{username}</div>
+                        <div className="settings-item-meta">
+                          Banned from server
+                        </div>
+                      </div>
+                      {isOwner && (
+                        <button
+                          className="settings-icon-btn"
+                          onClick={() => handleUnbanUser(username)}
+                          title="Unban"
+                        >
+                          <Icon name="UserCheck" size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -403,18 +842,33 @@ export function ServerSettingsModal() {
           >
             <div className="settings-inner-dialog">
               <h3>{editingRole ? "Edit Role" : "Create Role"}</h3>
-              <div className="settings-field">
-                <label>Name</label>
-                <input
-                  type="text"
-                  value={roleName}
-                  onInput={(e) =>
-                    setRoleName((e.target as HTMLInputElement).value)
-                  }
-                  disabled={!!editingRole}
-                  placeholder="Role name"
-                />
-              </div>
+              {editingRole ? (
+                <div className="settings-field">
+                  <label>Role Name</label>
+                  <div className="settings-value-static">
+                    <span
+                      className="role-color-dot"
+                      style={{
+                        background: editingRole.color || "#5865F2",
+                        marginRight: "8px",
+                      }}
+                    ></span>
+                    {editingRole.name}
+                  </div>
+                </div>
+              ) : (
+                <div className="settings-field">
+                  <label>Name</label>
+                  <input
+                    type="text"
+                    value={roleName}
+                    onInput={(e) =>
+                      setRoleName((e.target as HTMLInputElement).value)
+                    }
+                    placeholder="Role name"
+                  />
+                </div>
+              )}
               <div className="settings-field">
                 <label>Description</label>
                 <input
@@ -464,51 +918,345 @@ export function ServerSettingsModal() {
           </div>
         )}
 
-        {memberRolesModal && (
+        {channelModalOpen && (
           <div
             className="settings-inner-modal"
             onClick={(e) => {
-              if (e.target === e.currentTarget) setMemberRolesModal(null);
+              if (e.target === e.currentTarget) setChannelModalOpen(false);
             }}
           >
             <div className="settings-inner-dialog">
-              <h3>Manage Roles - {memberRolesModal}</h3>
-              <div className="settings-roles-list">
-                {serverRoles
-                  .filter((r) => !["owner"].includes(r.name))
-                  .map((role) => {
-                    const member = usersList.find(
-                      (u) => u.username === memberRolesModal,
-                    );
-                    const hasRole = member?.roles?.includes(role.name) || false;
-                    return (
-                      <label key={role.name} className="settings-role-toggle">
-                        <input
-                          type="checkbox"
-                          checked={hasRole}
-                          onChange={() =>
-                            toggleMemberRole(
-                              memberRolesModal,
-                              role.name,
-                              hasRole,
-                            )
+              <h3>Create Channel</h3>
+              <div className="settings-field">
+                <label>Channel Name</label>
+                <input
+                  type="text"
+                  value={channelName}
+                  onInput={(e) =>
+                    setChannelName((e.target as HTMLInputElement).value)
+                  }
+                  placeholder="channel-name"
+                />
+              </div>
+              <div className="settings-field">
+                <label>Channel Type</label>
+                <div className="settings-radio-group">
+                  <label className="settings-radio-option">
+                    <input
+                      type="radio"
+                      name="channelType"
+                      value="text"
+                      checked={channelType === "text"}
+                      onChange={() => setChannelType("text")}
+                    />
+                    <Icon name="Hash" size={16} />
+                    <span>Text</span>
+                  </label>
+                  <label className="settings-radio-option">
+                    <input
+                      type="radio"
+                      name="channelType"
+                      value="voice"
+                      checked={channelType === "voice"}
+                      onChange={() => setChannelType("voice")}
+                    />
+                    <Icon name="Mic" size={16} />
+                    <span>Voice</span>
+                  </label>
+                  <label className="settings-radio-option">
+                    <input
+                      type="radio"
+                      name="channelType"
+                      value="separator"
+                      checked={channelType === "separator"}
+                      onChange={() => setChannelType("separator")}
+                    />
+                    <Icon name="Minus" size={16} />
+                    <span>Separator</span>
+                  </label>
+                </div>
+              </div>
+              {channelType !== "separator" && (
+                <div className="settings-field">
+                  <label>Description</label>
+                  <input
+                    type="text"
+                    value={channelDescription}
+                    onInput={(e) =>
+                      setChannelDescription(
+                        (e.target as HTMLInputElement).value,
+                      )
+                    }
+                    placeholder="Channel description (optional)"
+                  />
+                </div>
+              )}
+              <div className="settings-dialog-actions">
+                <button
+                  className="settings-btn-cancel"
+                  onClick={() => setChannelModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="settings-btn-confirm"
+                  onClick={handleCreateChannel}
+                  disabled={!channelName.trim()}
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {userDetailModal && (
+          <div
+            className="settings-inner-modal"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setUserDetailModal(null);
+            }}
+          >
+            <div className="settings-inner-dialog settings-inner-dialog-wide">
+              <div className="user-detail-header">
+                <img
+                  src={avatarUrl(userDetailModal.username)}
+                  className="user-detail-avatar"
+                  alt=""
+                />
+                <div className="user-detail-info">
+                  <h3>{userDetailModal.username}</h3>
+                  <div className="user-detail-roles">
+                    {(
+                      users.value[userDetailModal.username.toLowerCase()]
+                        ?.roles || []
+                    ).map((role) => (
+                      <span
+                        key={role}
+                        className="member-role-badge"
+                        style={{ background: getRoleColor(role) }}
+                      >
+                        {role}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="user-detail-tabs">
+                <button
+                  className={`user-detail-tab ${userDetailModal.tab === "overview" ? "active" : ""}`}
+                  onClick={() =>
+                    setUserDetailModal({ ...userDetailModal, tab: "overview" })
+                  }
+                >
+                  Overview
+                </button>
+                <button
+                  className={`user-detail-tab ${userDetailModal.tab === "roles" ? "active" : ""}`}
+                  onClick={() =>
+                    setUserDetailModal({ ...userDetailModal, tab: "roles" })
+                  }
+                >
+                  Roles
+                </button>
+                <button
+                  className={`user-detail-tab ${userDetailModal.tab === "moderation" ? "active" : ""}`}
+                  onClick={() =>
+                    setUserDetailModal({
+                      ...userDetailModal,
+                      tab: "moderation",
+                    })
+                  }
+                >
+                  Moderation
+                </button>
+              </div>
+              <div className="user-detail-content">
+                {userDetailModal.tab === "overview" && (
+                  <div className="settings-field-group">
+                    <div className="settings-field">
+                      <label>Username</label>
+                      <div className="settings-value">
+                        {users.value[userDetailModal.username.toLowerCase()]
+                          ?.username || userDetailModal.username}
+                      </div>
+                    </div>
+                    <div className="settings-field">
+                      <label>Nickname</label>
+                      <div className="settings-value">
+                        {users.value[userDetailModal.username.toLowerCase()]
+                          ?.nickname || "None"}
+                      </div>
+                    </div>
+                    <div className="settings-field">
+                      <label>Status</label>
+                      <div className="settings-value">
+                        {users.value[userDetailModal.username.toLowerCase()]
+                          ?.status || "offline"}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {userDetailModal.tab === "roles" && (
+                  <UserRolesEditor
+                    username={userDetailModal.username}
+                    serverRoles={serverRoles}
+                    serverUrl={serverUrl.value}
+                  />
+                )}
+                {userDetailModal.tab === "moderation" && (
+                  <div className="moderation-actions">
+                    <div className="moderation-section">
+                      <h4>Timeout</h4>
+                      <p className="moderation-description">
+                        Temporarily prevent the user from sending messages.
+                      </p>
+                      <div className="moderation-buttons">
+                        <button
+                          className="moderation-btn warning"
+                          onClick={() =>
+                            handleTimeoutUser(userDetailModal.username, 60)
                           }
-                        />
-                        <span
-                          className="role-color-dot"
-                          style={{ background: role.color || "#5865F2" }}
-                        ></span>
-                        <span>{role.name}</span>
-                      </label>
-                    );
-                  })}
+                        >
+                          1 min
+                        </button>
+                        <button
+                          className="moderation-btn warning"
+                          onClick={() =>
+                            handleTimeoutUser(userDetailModal.username, 300)
+                          }
+                        >
+                          5 min
+                        </button>
+                        <button
+                          className="moderation-btn warning"
+                          onClick={() =>
+                            handleTimeoutUser(userDetailModal.username, 3600)
+                          }
+                        >
+                          1 hour
+                        </button>
+                        <button
+                          className="moderation-btn warning"
+                          onClick={() =>
+                            handleTimeoutUser(userDetailModal.username, 86400)
+                          }
+                        >
+                          24 hours
+                        </button>
+                        <button
+                          className="moderation-btn warning"
+                          onClick={() =>
+                            setTimeoutModal(userDetailModal.username)
+                          }
+                        >
+                          Custom
+                        </button>
+                      </div>
+                    </div>
+                    <div className="moderation-section">
+                      <h4>Delete Account</h4>
+                      <p className="moderation-description">
+                        Permanently delete this user's account from the server.
+                      </p>
+                      <button
+                        className="moderation-btn danger"
+                        onClick={() =>
+                          setConfirmDelete(userDetailModal.username)
+                        }
+                      >
+                        Delete Account
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="settings-dialog-actions">
                 <button
                   className="settings-btn-confirm"
-                  onClick={() => setMemberRolesModal(null)}
+                  onClick={() => setUserDetailModal(null)}
                 >
                   Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {timeoutModal && (
+          <div
+            className="settings-inner-modal"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setTimeoutModal(null);
+            }}
+          >
+            <div className="settings-inner-dialog">
+              <h3>Set Custom Timeout</h3>
+              <div className="settings-field">
+                <label>Duration (seconds)</label>
+                <input
+                  type="number"
+                  value={timeoutSeconds}
+                  onInput={(e) =>
+                    setTimeoutSeconds(
+                      Number((e.target as HTMLInputElement).value),
+                    )
+                  }
+                  min={0}
+                />
+              </div>
+              <div className="timeout-presets">
+                <button onClick={() => setTimeoutSeconds(60)}>1m</button>
+                <button onClick={() => setTimeoutSeconds(300)}>5m</button>
+                <button onClick={() => setTimeoutSeconds(900)}>15m</button>
+                <button onClick={() => setTimeoutSeconds(3600)}>1h</button>
+                <button onClick={() => setTimeoutSeconds(86400)}>24h</button>
+              </div>
+              <div className="settings-dialog-actions">
+                <button
+                  className="settings-btn-cancel"
+                  onClick={() => setTimeoutModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="settings-btn-confirm"
+                  onClick={() =>
+                    handleTimeoutUser(timeoutModal, timeoutSeconds)
+                  }
+                >
+                  Apply Timeout
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {confirmDelete && (
+          <div
+            className="settings-inner-modal"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setConfirmDelete(null);
+            }}
+          >
+            <div className="settings-inner-dialog">
+              <h3>Delete Account</h3>
+              <p className="settings-warning-text">
+                Are you sure you want to permanently delete "{confirmDelete}"?
+                This cannot be undone.
+              </p>
+              <div className="settings-dialog-actions">
+                <button
+                  className="settings-btn-cancel"
+                  onClick={() => setConfirmDelete(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="settings-btn-danger"
+                  onClick={() => handleDeleteUser(confirmDelete)}
+                >
+                  Delete
                 </button>
               </div>
             </div>

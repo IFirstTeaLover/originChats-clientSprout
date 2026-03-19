@@ -1502,9 +1502,46 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
       break;
     }
     case "roles_list": {
-      // msg.roles is an object keyed by role name e.g. { owner: { color, description, ... }, ... }
       const roles: Record<string, Role> = msg.roles || {};
       rolesByServer.value = { ...rolesByServer.value, [sUrl]: roles };
+      break;
+    }
+    case "role_reorder": {
+      const { rolesByServer } = await import("../state");
+      const currentRoles = rolesByServer.value[sUrl] || {};
+      const reorderedRoles: Record<string, Role> = {};
+      (msg.roles || []).forEach((roleName: string) => {
+        if (currentRoles[roleName]) {
+          reorderedRoles[roleName] = currentRoles[roleName];
+        }
+      });
+      rolesByServer.value = { ...rolesByServer.value, [sUrl]: reorderedRoles };
+      break;
+    }
+    case "user_roles_set": {
+      const username = msg.user?.toLowerCase();
+      if (!username) break;
+      const serverUsers = usersByServer.value[sUrl] || {};
+      const user = serverUsers[username];
+      if (user) {
+        user.roles = msg.roles || [];
+        const roleColor = Object.values(rolesByServer.value[sUrl] || {}).find(
+          (r) => user.roles.includes(r.name),
+        )?.color;
+        if (roleColor) user.color = roleColor;
+        usersByServer.value = {
+          ...usersByServer.value,
+          [sUrl]: { ...serverUsers },
+        };
+      }
+      break;
+    }
+    case "users_banned_list": {
+      const { bannedUsersByServer } = await import("./ui-signals");
+      bannedUsersByServer.value = {
+        ...bannedUsersByServer.value,
+        [sUrl]: msg.users || [],
+      };
       break;
     }
     case "message_react_add":
