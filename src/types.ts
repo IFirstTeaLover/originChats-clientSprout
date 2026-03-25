@@ -40,6 +40,17 @@ export interface Thread {
   participants?: string[];
 }
 
+export interface ThreadUpdate {
+  id?: string;
+  name?: string;
+  parent_channel?: string;
+  created_by?: string;
+  created_at?: number;
+  locked?: boolean;
+  archived?: boolean;
+  participants?: string[];
+}
+
 export interface VoiceUser {
   username: string;
   muted?: boolean;

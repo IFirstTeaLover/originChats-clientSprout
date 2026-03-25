@@ -954,7 +954,7 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
           currentThread.value = {
             ...currentThread.value,
             participants: threadJoin.thread.participants,
-          };
+          } as Thread;
         }
         renderChannelsSignal.value++;
       }
@@ -973,7 +973,7 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
           currentThread.value = {
             ...currentThread.value,
             participants: threadLeave.thread.participants,
-          };
+          } as Thread;
         }
         renderChannelsSignal.value++;
       }
@@ -1482,7 +1482,7 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
       const message = msgGet.message;
       const messageKey = getMessageKey(msgGet);
       if (!channel || !message) break;
-      pendingReplyFetchesByServer[sUrl]?.delete(message.id);
+      pendingReplyFetchesByServer[sUrl]?.delete(message.id!);
       if (!messagesByServer.value[sUrl][messageKey]) {
         messagesByServer.value = {
           ...messagesByServer.value,
@@ -1586,7 +1586,7 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
       if (user) {
         user.roles = msg.roles || [];
         const roleColor = Object.values(rolesByServer.value[sUrl] || {}).find(
-          (r) => user.roles.includes(r.name),
+          (r) => user.roles?.includes(r.name),
         )?.color;
         if (roleColor) user.color = roleColor;
         usersByServer.value = {

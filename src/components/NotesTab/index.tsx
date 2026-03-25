@@ -42,7 +42,7 @@ function groupNotes(notes: NoteMessage[]): NoteGroup[] {
     if (shouldStartNew) {
       if (current) groups.push(current);
       current = { head: note, following: [] };
-    } else {
+    } else if (current) {
       current.following.push(note);
     }
   }

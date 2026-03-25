@@ -279,9 +279,9 @@ export function ServerSettingsModal() {
     const roles = rolesByServer.value[serverUrl.value];
     if (roles) {
       setServerRoles(
-        Object.entries(roles).map(([name, role]) => ({
-          name,
+        Object.entries(roles).map(([roleName, role]) => ({
           ...role,
+          name: roleName,
         })),
       );
     }

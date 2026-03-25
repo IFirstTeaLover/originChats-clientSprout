@@ -29,8 +29,8 @@ function MembersListInner() {
   let memberList: Array<{
     username: string;
     nickname?: string;
-    status: { status: string; text?: string };
-    color: string;
+    status?: { status: string; text?: string };
+    color: string | null;
     roles: string[];
   }>;
 

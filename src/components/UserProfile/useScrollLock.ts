@@ -19,7 +19,7 @@ function useStableCallback<T extends (...args: any[]) => any>(fn: T): T {
 }
 
 interface UseScrollLockResult {
-  containerRef: ReturnType<typeof useRef<HTMLDivElement | null>>;
+  containerRef: { current: HTMLDivElement | null };
   showScrollBtn: boolean;
   scrollToBottom: () => void;
   /** Call when the channel changes so the lock resets and view snaps to bottom. */

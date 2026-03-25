@@ -275,9 +275,10 @@ export function Header() {
           currentChannel.value?.name &&
           !SPECIAL_CHANNELS.has(currentChannel.value.name) &&
           (() => {
+            const displayName = currentChannel.value?.display_name;
             const is1on1 =
-              currentChannel.value?.icon ===
-              avatarUrl(currentChannel.value?.display_name);
+              displayName &&
+              currentChannel.value?.icon === avatarUrl(displayName);
             return (
               <button
                 className={`${styles.headerIconBtn} ${rightPanelView.value === "members" ? styles.active : ""}`}

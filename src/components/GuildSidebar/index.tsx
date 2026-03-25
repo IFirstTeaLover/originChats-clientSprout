@@ -217,30 +217,30 @@ export function GuildSidebar() {
         },
         folderContainingServer
           ? {
-            label: "Remove from Folder",
-            icon: "FolderMinus",
-            fn: () => {
-              serverFolders.value = serverFolders.value
-                .map((f) =>
-                  f.id === folderContainingServer.id
-                    ? {
-                      ...f,
-                      serverUrls: f.serverUrls.filter(
-                        (u) => u !== server.url,
-                      ),
-                    }
-                    : f,
-                )
-                .filter((f) => f.serverUrls.length > 0);
-              saveFolders().catch(() => { });
-            },
-          }
+              label: "Remove from Folder",
+              icon: "FolderMinus",
+              fn: () => {
+                serverFolders.value = serverFolders.value
+                  .map((f) =>
+                    f.id === folderContainingServer.id
+                      ? {
+                          ...f,
+                          serverUrls: f.serverUrls.filter(
+                            (u) => u !== server.url,
+                          ),
+                        }
+                      : f,
+                  )
+                  .filter((f) => f.serverUrls.length > 0);
+                saveFolders().catch(() => {});
+              },
+            }
           : null,
-        { separator: true, label: "", fn: () => { } },
+        { separator: true, label: "", fn: () => {} },
         {
           label: "Notifications",
           icon: "Bell",
-          fn: () => { },
+          fn: () => {},
           children: [
             {
               label: `All Messages${currentLevel === "all" ? " ✓" : ""}`,
@@ -259,19 +259,19 @@ export function GuildSidebar() {
             },
           ],
         },
-        { separator: true, label: "", fn: () => { } },
+        { separator: true, label: "", fn: () => {} },
         {
           label: "Reload Icon",
           icon: "RefreshCw",
           fn: () => reloadServerIcon(server.url),
         },
-        { separator: true, label: "", fn: () => { } },
+        { separator: true, label: "", fn: () => {} },
         {
           label: "Copy URL",
           icon: "Copy",
           fn: () => navigator.clipboard.writeText(server.url),
         },
-        { separator: true, label: "", fn: () => { } },
+        { separator: true, label: "", fn: () => {} },
         {
           label: "Leave Server",
           icon: "LogOut",
@@ -320,15 +320,15 @@ export function GuildSidebar() {
             serverFolders.value = serverFolders.value.map((f) =>
               f.id === folder.id ? { ...f, name: newName.trim() } : f,
             );
-            saveFolders().catch(() => { });
+            saveFolders().catch(() => {});
           }
         },
       },
-      { separator: true, label: "", fn: () => { } },
+      { separator: true, label: "", fn: () => {} },
       {
         label: "Folder Color",
         icon: "Palette",
-        fn: () => { },
+        fn: () => {},
         children: colors.map((c) => ({
           label: `${c.hex === (folder.color || "") ? "✓ " : ""}${c.name}`,
           icon: "Circle",
@@ -337,11 +337,11 @@ export function GuildSidebar() {
             serverFolders.value = serverFolders.value.map((f) =>
               f.id === folder.id ? { ...f, color: c.hex } : f,
             );
-            saveFolders().catch(() => { });
+            saveFolders().catch(() => {});
           },
         })),
       },
-      { separator: true, label: "", fn: () => { } },
+      { separator: true, label: "", fn: () => {} },
       {
         label: "Clear Color",
         icon: "X",
@@ -349,10 +349,10 @@ export function GuildSidebar() {
           serverFolders.value = serverFolders.value.map((f) =>
             f.id === folder.id ? { ...f, color: undefined } : f,
           );
-          saveFolders().catch(() => { });
+          saveFolders().catch(() => {});
         },
       },
-      { separator: true, label: "", fn: () => { } },
+      { separator: true, label: "", fn: () => {} },
       {
         label: "Delete Folder",
         icon: "Trash2",
@@ -361,7 +361,7 @@ export function GuildSidebar() {
           serverFolders.value = serverFolders.value.filter(
             (f) => f.id !== folder.id,
           );
-          saveFolders().catch(() => { });
+          saveFolders().catch(() => {});
         },
       },
     ]);
@@ -433,15 +433,19 @@ export function GuildSidebar() {
                   className={`${styles.guildItem} ${styles.folderItem}${hasActive ? ` ${styles.active}` : ""}`}
                   onClick={() => {
                     serverFolders.value = serverFolders.value.map((f) =>
-                      f.id === folder.id ? { ...f, collapsed: !isCollapsed } : f,
+                      f.id === folder.id
+                        ? { ...f, collapsed: !isCollapsed }
+                        : f,
                     );
-                    saveFolders().catch(() => { });
+                    saveFolders().catch(() => {});
                   }}
                   onContextMenu={(e) => handleFolderContextMenu(e, folder)}
                 >
                   <div
                     className={styles.folderIcon}
-                    style={folder.color ? { backgroundColor: folder.color } : {}}
+                    style={
+                      folder.color ? { backgroundColor: folder.color } : {}
+                    }
                   >
                     <Icon
                       name={isCollapsed ? "Folder" : "FolderOpen"}
@@ -552,30 +556,34 @@ export function GuildSidebar() {
             </div>
           </div>
 
-          {(isDragging || isDropping) && drag && (
-            <div
-              className={`${styles.guildItem} ${styles.dragging}`}
-              style={{
-                position: "fixed",
-                left: 12,
-                top: isDragging
-                  ? drag.y - 24
-                  : drag.listTop +
-                  (drag.serverListOffset || 0) * ITEM_HEIGHT +
-                  (drag.dropIndex ?? 0) * ITEM_HEIGHT +
-                  4,
-                pointerEvents: "none",
-                zIndex: 1000,
-                transition: isDropping ? "top 0.15s ease" : undefined,
-              }}
-            >
-              <div className={styles.guildIcon}>
-                <ServerIcon
-                  server={servers.value.find((s) => s.url === drag.url)}
-                />
+          {(() => {
+            if (!(isDragging || isDropping) || !drag) return null;
+            const d = drag;
+            return (
+              <div
+                className={`${styles.guildItem} ${styles.dragging}`}
+                style={{
+                  position: "fixed",
+                  left: 12,
+                  top: isDragging
+                    ? d.y - 24
+                    : d.listTop +
+                      (d.serverListOffset || 0) * ITEM_HEIGHT +
+                      (d.dropIndex ?? 0) * ITEM_HEIGHT +
+                      4,
+                  pointerEvents: "none",
+                  zIndex: 1000,
+                  transition: isDropping ? "top 0.15s ease" : undefined,
+                }}
+              >
+                <div className={styles.guildIcon}>
+                  <ServerIcon
+                    server={servers.value.find((s) => s.url === d.url)!}
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
       {confirmDialog && (
@@ -611,7 +619,7 @@ function DMServerItem({
             icon: "CheckCircle",
             fn: () => markServerAsRead(DM_SERVER_URL),
           },
-          { separator: true, label: "", fn: () => { } },
+          { separator: true, label: "", fn: () => {} },
           {
             label: "Copy Username",
             icon: "Copy",

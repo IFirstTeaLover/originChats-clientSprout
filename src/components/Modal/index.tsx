@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from "preact/hooks";
 import { Icon } from "../Icon";
 import { useFocusTrap } from "../../lib/useFocusTrap";
 import type { VNode } from "preact";
+import type { ComponentChildren } from "preact";
 
 export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
-  children: VNode | VNode[] | string;
+  children?: ComponentChildren;
   size?: "sm" | "md" | "lg" | "xl";
   showClose?: boolean;
 }
@@ -103,7 +104,7 @@ export function ConfirmDialog({
       size="sm"
       showClose={false}
     >
-      {message && <p className="dialog-message">{message}</p>}
+      {message ? <p className="dialog-message">{message}</p> : null}
       <div className="dialog-actions">
         <button className="btn btn-secondary" onClick={onClose}>
           {cancelText}

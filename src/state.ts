@@ -683,90 +683,51 @@ let _settingsLoaded = false;
 
 export async function initSettingsFromDb(): Promise<void> {
   const s = dbSettings;
-  const bool = (v: string | undefined, def: boolean) =>
-    v === undefined ? def : v !== "false";
-  const num = (v: string | undefined, def: number) =>
-    v === undefined ? def : parseFloat(v);
-  const str = <T extends string>(v: string | undefined, def: T) =>
-    (v ?? def) as T;
+  const bool = async (key: string, def: boolean) => {
+    const v = await s.get<string | undefined>(key, undefined);
+    return v === undefined ? def : v !== "false";
+  };
+  const num = async (key: string, def: number) => {
+    const v = await s.get<string | undefined>(key, undefined);
+    return v === undefined ? def : parseFloat(v);
+  };
+  const str = async <T extends string>(key: string, def: T): Promise<T> => {
+    const v = await s.get<string | undefined>(key, undefined);
+    return (v ?? def) as T;
+  };
 
   recentEmojis.value = await s.get<string[]>("recentEmojis", []);
-  sendTypingIndicators.value = bool(
-    await s.get<string>("sendTypingIndicators", undefined),
-    true,
-  );
-  dmMessageSound.value = bool(
-    await s.get<string>("dmMessageSound", undefined),
-    true,
-  );
-  pingSound.value = str(
-    await s.get<string>("pingSound", undefined),
-    "default",
-  ) as PingSoundType;
-  pingVolume.value = num(await s.get<string>("pingVolume", undefined), 0.3);
+  sendTypingIndicators.value = await bool("sendTypingIndicators", true);
+  dmMessageSound.value = await bool("dmMessageSound", true);
+  pingSound.value = await str<PingSoundType>("pingSound", "default");
+  pingVolume.value = await num("pingVolume", 0.3);
   customPingSound.value = await s.get<string | null>("customPingSound", null);
-  blockedMessageDisplay.value = str(
-    await s.get<string>("blockedMessageDisplay", undefined),
+  blockedMessageDisplay.value = await str<BlockedMessageDisplay>(
+    "blockedMessageDisplay",
     "collapse",
-  ) as BlockedMessageDisplay;
-  appTheme.value = str(
-    await s.get<string>("theme", undefined),
-    "dark",
-  ) as AppTheme;
-  appFont.value = str(
-    await s.get<string>("font", undefined),
-    "default",
-  ) as AppFont;
-  hideScrollbars.value = bool(
-    await s.get<string>("hideScrollbars", undefined),
-    false,
   );
-  hideAvatarBorders.value = bool(
-    await s.get<string>("hideAvatarBorders", undefined),
-    false,
-  );
-  reduceMotion.value = bool(
-    await s.get<string>("reduceMotion", undefined),
-    false,
-  );
-  avatarShape.value = str(
-    await s.get<string>("avatarShape", undefined),
-    "circle",
-  ) as AvatarShape;
-  bubbleRadius.value = num(await s.get<string>("bubbleRadius", undefined), 10);
+  appTheme.value = await str<AppTheme>("theme", "dark");
+  appFont.value = await str<AppFont>("font", "default");
+  hideScrollbars.value = await bool("hideScrollbars", false);
+  hideAvatarBorders.value = await bool("hideAvatarBorders", false);
+  reduceMotion.value = await bool("reduceMotion", false);
+  avatarShape.value = await str<AvatarShape>("avatarShape", "circle");
+  bubbleRadius.value = await num("bubbleRadius", 10);
   accentColor.value = await s.get<string>("accentColor", "");
   pingHighlightColor.value = await s.get<string>("pingHighlightColor", "");
-  messageFontSize.value = num(
-    await s.get<string>("messageFontSize", undefined),
-    15,
-  );
-  compactMode.value = bool(
-    await s.get<string>("compactMode", undefined),
+  messageFontSize.value = await num("messageFontSize", 15);
+  compactMode.value = await bool("compactMode", false);
+  showTimestamps.value = await bool("showTimestamps", true);
+  notificationPromptDismissed.value = await bool(
+    "notificationPromptDismissed",
     false,
   );
-  showTimestamps.value = bool(
-    await s.get<string>("showTimestamps", undefined),
-    true,
-  );
-  notificationPromptDismissed.value = bool(
-    await s.get<string>("notificationPromptDismissed", undefined),
-    false,
-  );
-  showEditedIndicator.value = bool(
-    await s.get<string>("showEdited", undefined),
-    true,
-  );
-  maxInlineImageWidth.value = num(
-    await s.get<string>("maxInlineImageWidth", undefined),
-    400,
-  );
-  useSystemEmojis.value = bool(
-    await s.get<string>("useSystemEmojis", undefined),
-    false,
-  );
-  micThreshold.value = num(await s.get<string>("micThreshold", undefined), 30);
-  voiceVideoRes.value = num(await s.get<string>("vcRes", undefined), 720);
-  voiceVideoFps.value = num(await s.get<string>("vcFps", undefined), 30);
+  showEditedIndicator.value = await bool("showEdited", true);
+  maxInlineImageWidth.value = await num("maxInlineImageWidth", 400);
+  useSystemEmojis.value = await bool("useSystemEmojis", false);
+  micThreshold.value = await num("micThreshold", 30);
+  voiceVideoRes.value = await num("vcRes", 720);
+  voiceVideoFps.value = await num("vcFps", 30);
   serverNotifSettings.value = await s.get<Record<string, NotificationLevel>>(
     "serverNotifSettings",
     {},
