@@ -1,15 +1,25 @@
 const CACHE_DURATION_MS = 2 * 24 * 60 * 60 * 1000;
+const MAX_CACHE_ENTRIES = 50;
+const MAX_SIZE_CACHE_ENTRIES = 200;
 
 const DB_NAME = "originchats";
 const STORE_NAME = "imageCache";
-const DB_VERSION = 2;
+const SIZE_STORE_NAME = "imageSizeCache";
+const DB_VERSION = 3;
 
 interface CachedImage {
   dataUri: string;
   timestamp: number;
 }
 
+interface CachedImageSize {
+  width: number;
+  height: number;
+  timestamp: number;
+}
+
 const memoryCache = new Map<string, CachedImage>();
+const sizeMemoryCache = new Map<string, CachedImageSize>();
 const channelLoadingState = new Map<
   string,
   {
@@ -33,6 +43,9 @@ function openDb(): Promise<IDBDatabase> {
       const db = (e.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
+      }
+      if (!db.objectStoreNames.contains(SIZE_STORE_NAME)) {
+        db.createObjectStore(SIZE_STORE_NAME);
       }
     };
 
@@ -71,6 +84,12 @@ async function getFromCache(url: string): Promise<CachedImage | undefined> {
 }
 
 async function saveToCache(url: string, dataUri: string): Promise<void> {
+  if (memoryCache.size >= MAX_CACHE_ENTRIES) {
+    const oldestKey = memoryCache.keys().next().value;
+    if (oldestKey) {
+      memoryCache.delete(oldestKey);
+    }
+  }
   const entry: CachedImage = { dataUri, timestamp: Date.now() };
   memoryCache.set(url, entry);
   try {
@@ -88,32 +107,64 @@ async function saveToCache(url: string, dataUri: string): Promise<void> {
 export async function deleteExpiredCache(): Promise<void> {
   try {
     const db = await openDb();
-    if (!db.objectStoreNames.contains(STORE_NAME)) return;
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    const now = Date.now();
-    const keysReq = store.getAllKeys();
-    const valsReq = store.getAll();
 
-    let keys: IDBValidKey[] = [];
-    let vals: CachedImage[] = [];
+    // Clean imageCache
+    if (db.objectStoreNames.contains(STORE_NAME)) {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      const now = Date.now();
+      const keysReq = store.getAllKeys();
+      const valsReq = store.getAll();
 
-    keysReq.onsuccess = () => {
-      keys = keysReq.result;
-    };
-    valsReq.onsuccess = () => {
-      vals = valsReq.result;
-    };
+      let keys: IDBValidKey[] = [];
+      let vals: CachedImage[] = [];
 
-    tx.oncomplete = () => {
-      keys.forEach((key, i) => {
-        const entry = vals[i];
-        if (entry && now - entry.timestamp > CACHE_DURATION_MS) {
-          const deleteTx = db.transaction(STORE_NAME, "readwrite");
-          deleteTx.objectStore(STORE_NAME).delete(key);
-        }
-      });
-    };
+      keysReq.onsuccess = () => {
+        keys = keysReq.result;
+      };
+      valsReq.onsuccess = () => {
+        vals = valsReq.result;
+      };
+
+      tx.oncomplete = () => {
+        keys.forEach((key, i) => {
+          const entry = vals[i];
+          if (entry && now - entry.timestamp > CACHE_DURATION_MS) {
+            const deleteTx = db.transaction(STORE_NAME, "readwrite");
+            deleteTx.objectStore(STORE_NAME).delete(key);
+          }
+        });
+      };
+    }
+
+    // Clean imageSizeCache
+    if (db.objectStoreNames.contains(SIZE_STORE_NAME)) {
+      const tx = db.transaction(SIZE_STORE_NAME, "readwrite");
+      const store = tx.objectStore(SIZE_STORE_NAME);
+      const now = Date.now();
+      const keysReq = store.getAllKeys();
+      const valsReq = store.getAll();
+
+      let keys: IDBValidKey[] = [];
+      let vals: CachedImageSize[] = [];
+
+      keysReq.onsuccess = () => {
+        keys = keysReq.result;
+      };
+      valsReq.onsuccess = () => {
+        vals = valsReq.result;
+      };
+
+      tx.oncomplete = () => {
+        keys.forEach((key, i) => {
+          const entry = vals[i];
+          if (entry && now - entry.timestamp > CACHE_DURATION_MS) {
+            const deleteTx = db.transaction(SIZE_STORE_NAME, "readwrite");
+            deleteTx.objectStore(SIZE_STORE_NAME).delete(key);
+          }
+        });
+      };
+    }
   } catch {}
 }
 
@@ -160,13 +211,18 @@ export async function getCachedImage(url: string): Promise<string | null> {
 
   let pending = pendingFetches.get(url);
   if (!pending) {
-    pending = fetchAsDataUri(url).then((dataUri) => {
-      pendingFetches.delete(url);
-      if (dataUri) {
-        saveToCache(url, dataUri);
-      }
-      return dataUri;
-    });
+    pending = fetchAsDataUri(url)
+      .then((dataUri) => {
+        pendingFetches.delete(url);
+        if (dataUri) {
+          saveToCache(url, dataUri);
+        }
+        return dataUri;
+      })
+      .catch((err) => {
+        pendingFetches.delete(url);
+        throw err;
+      });
     pendingFetches.set(url, pending);
   }
 
@@ -245,32 +301,73 @@ export function scheduleCleanup(): void {
   }, 5000);
 }
 
-async function preloadCache(): Promise<void> {
+export function getCachedImageSize(
+  url: string,
+): { width: number; height: number } | null {
+  if (!url || url.startsWith("data:") || url.startsWith("blob:")) return null;
+  const cached = sizeMemoryCache.get(url);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION_MS) {
+    return { width: cached.width, height: cached.height };
+  }
+  return null;
+}
+
+export async function getCachedImageSizeAsync(
+  url: string,
+): Promise<{ width: number; height: number } | null> {
+  if (!url || url.startsWith("data:") || url.startsWith("blob:")) return null;
+  const memCached = sizeMemoryCache.get(url);
+  if (memCached && Date.now() - memCached.timestamp < CACHE_DURATION_MS) {
+    return { width: memCached.width, height: memCached.height };
+  }
   try {
     const db = await openDb();
-    if (!db.objectStoreNames.contains(STORE_NAME)) return;
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.getAll();
-    const keysReq = store.getAllKeys();
-
-    await new Promise<void>((resolve, reject) => {
-      tx.oncomplete = () => {
-        const vals = req.result as CachedImage[];
-        const keys = keysReq.result as string[];
-        const now = Date.now();
-        keys.forEach((key, i) => {
-          const entry = vals[i];
-          if (entry && now - entry.timestamp < CACHE_DURATION_MS) {
-            memoryCache.set(key, entry);
+    if (!db.objectStoreNames.contains(SIZE_STORE_NAME)) return null;
+    return new Promise((resolve) => {
+      const tx = db.transaction(SIZE_STORE_NAME, "readonly");
+      const req = tx.objectStore(SIZE_STORE_NAME).get(url);
+      req.onsuccess = () => {
+        const result = req.result as CachedImageSize | undefined;
+        if (result && Date.now() - result.timestamp < CACHE_DURATION_MS) {
+          if (sizeMemoryCache.size >= MAX_SIZE_CACHE_ENTRIES) {
+            const oldestKey = sizeMemoryCache.keys().next().value;
+            if (oldestKey) sizeMemoryCache.delete(oldestKey);
           }
-        });
-        resolve();
+          sizeMemoryCache.set(url, result);
+          resolve({ width: result.width, height: result.height });
+        } else {
+          resolve(null);
+        }
       };
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function saveImageSize(
+  url: string,
+  width: number,
+  height: number,
+): Promise<void> {
+  if (!url || url.startsWith("data:") || url.startsWith("blob:")) return;
+  if (sizeMemoryCache.size >= MAX_SIZE_CACHE_ENTRIES) {
+    const oldestKey = sizeMemoryCache.keys().next().value;
+    if (oldestKey) sizeMemoryCache.delete(oldestKey);
+  }
+  const entry: CachedImageSize = { width, height, timestamp: Date.now() };
+  sizeMemoryCache.set(url, entry);
+  try {
+    const db = await openDb();
+    if (!db.objectStoreNames.contains(SIZE_STORE_NAME)) return;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SIZE_STORE_NAME, "readwrite");
+      tx.objectStore(SIZE_STORE_NAME).put(entry, url);
+      tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
   } catch {}
 }
 
-preloadCache();
 deleteExpiredCache();

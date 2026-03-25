@@ -6,6 +6,13 @@ type ChannelName = string;
 type MessageKey = string;
 type MessagesMap = Record<ServerUrl, Record<MessageKey, Message[]>>;
 
+const MAX_MESSAGES_PER_CHANNEL = 150;
+
+function trimMessages(messages: Message[]): Message[] {
+  if (messages.length <= MAX_MESSAGES_PER_CHANNEL) return messages;
+  return messages.slice(-MAX_MESSAGES_PER_CHANNEL);
+}
+
 export class MessageState {
   readonly byServer = signal<MessagesMap>({});
   readonly loaded = new Map<ServerUrl, Set<MessageKey>>();
@@ -72,7 +79,7 @@ export class MessageState {
   appendMessage(serverUrl: ServerUrl, key: MessageKey, message: Message): void {
     const existing = this.getMessages(serverUrl, key);
     if (existing.some((m) => m.id === message.id)) return;
-    this.setMessages(serverUrl, key, [...existing, message]);
+    this.setMessages(serverUrl, key, trimMessages([...existing, message]));
   }
 
   prependMessages(
@@ -83,7 +90,7 @@ export class MessageState {
     const existing = this.getMessages(serverUrl, key);
     const existingIds = new Set(existing.map((m) => m.id));
     const newOnes = messages.filter((m) => !existingIds.has(m.id));
-    this.setMessages(serverUrl, key, [...newOnes, ...existing]);
+    this.setMessages(serverUrl, key, trimMessages([...newOnes, ...existing]));
   }
 
   updateMessage(
@@ -127,7 +134,7 @@ export class MessageState {
             message,
             ...messages.slice(insertIdx),
           ];
-    this.setMessages(serverUrl, key, newMessages);
+    this.setMessages(serverUrl, key, trimMessages(newMessages));
   }
 
   clearServer(serverUrl: ServerUrl): void {

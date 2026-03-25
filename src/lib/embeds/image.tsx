@@ -1,21 +1,33 @@
-import { useState, useEffect } from "preact/hooks";
+import { useState, useEffect, useRef } from "preact/hooks";
 import { proxyImageUrl } from "./utils";
 import {
   getCachedImage,
   getCachedImageSync,
+  getCachedImageSize,
+  saveImageSize,
   scheduleCleanup,
 } from "../image-cache";
 
 export function ImageEmbed({ url }: { url: string }) {
   const initialCached = getCachedImageSync(url);
-  const [isValid, setIsValid] = useState<boolean | null>(
-    initialCached ? true : null,
-  );
+  const initialSize = getCachedImageSize(url);
+  const [isValid, setIsValid] = useState<boolean | null>(() => {
+    if (initialCached) return true;
+    if (initialSize) return true;
+    return null;
+  });
   const [cachedSrc, setCachedSrc] = useState<string | null>(
     () => initialCached,
   );
+  const [cachedSize, setCachedSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(() => initialSize);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
+    if (initialCached || initialSize) return;
+
     let cancelled = false;
 
     const checkAndCacheImage = async () => {
@@ -67,10 +79,15 @@ export function ImageEmbed({ url }: { url: string }) {
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, initialCached, initialSize]);
 
   if (isValid === null) {
-    return <div className="embed-container image-embed skeleton" />;
+    const style = cachedSize
+      ? `width: ${Math.min(cachedSize.width, 400)}px; aspect-ratio: ${cachedSize.width} / ${cachedSize.height};`
+      : "";
+    return (
+      <div className="embed-container image-embed skeleton" style={style} />
+    );
   }
   if (!isValid)
     return (
@@ -79,16 +96,32 @@ export function ImageEmbed({ url }: { url: string }) {
       </a>
     );
 
+  const handleImageLoad = () => {
+    if (imgRef.current) {
+      const { naturalWidth, naturalHeight } = imgRef.current;
+      if (naturalWidth > 0 && naturalHeight > 0) {
+        saveImageSize(url, naturalWidth, naturalHeight);
+        setCachedSize({ width: naturalWidth, height: naturalHeight });
+      }
+    }
+  };
+
+  const imgStyle = cachedSize
+    ? `width: ${Math.min(cachedSize.width, 400)}px; aspect-ratio: ${cachedSize.width} / ${cachedSize.height}; cursor: pointer;`
+    : "cursor: pointer";
+
   return (
     <div className="embed-container image-embed">
       <div className="chat-image-wrapper">
         <img
+          ref={imgRef}
           src={cachedSrc || proxyImageUrl(url)}
           alt="image"
           className="message-image"
           data-image-url={url}
           loading="lazy"
-          style="cursor: pointer"
+          style={imgStyle}
+          onLoad={handleImageLoad}
         />
       </div>
     </div>

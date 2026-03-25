@@ -1,8 +1,10 @@
-import { useState, useEffect } from "preact/hooks";
+import { useState, useEffect, useRef } from "preact/hooks";
 import { proxyImageUrl } from "./utils";
 import {
   getCachedImage,
   getCachedImageSync,
+  getCachedImageSize,
+  saveImageSize,
   scheduleCleanup,
 } from "../image-cache";
 
@@ -12,9 +14,16 @@ interface TenorEmbedProps {
 }
 
 export function TenorEmbed({ tenorId }: TenorEmbedProps) {
+  const sizeKey = `tenor:${tenorId}`;
+  const initialSize = getCachedImageSize(sizeKey);
   const [gifUrl, setGifUrl] = useState("");
   const [cachedSrc, setCachedSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
+  const [cachedSize, setCachedSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(() => initialSize);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,6 +44,10 @@ export function TenorEmbed({ tenorId }: TenorEmbedProps) {
         setGifUrl(url);
 
         const syncCached = getCachedImageSync(url);
+        const syncSize = getCachedImageSize(url);
+        if (syncSize) {
+          setCachedSize(syncSize);
+        }
         if (syncCached) {
           setCachedSrc(syncCached);
         } else {
@@ -55,23 +68,40 @@ export function TenorEmbed({ tenorId }: TenorEmbedProps) {
   }, [tenorId]);
 
   if (error || !gifUrl) {
+    const style = cachedSize
+      ? `width: ${Math.min(cachedSize.width, 400)}px; aspect-ratio: ${cachedSize.width} / ${cachedSize.height};`
+      : "width: 200px; height: 150px;";
     return (
-      <div
-        className="embed-container tenor-embed skeleton"
-        style="width: 200px; height: 150px;"
-      />
+      <div className="embed-container tenor-embed skeleton" style={style} />
     );
   }
+
+  const handleImageLoad = () => {
+    if (imgRef.current) {
+      const { naturalWidth, naturalHeight } = imgRef.current;
+      if (naturalWidth > 0 && naturalHeight > 0) {
+        saveImageSize(sizeKey, naturalWidth, naturalHeight);
+        setCachedSize({ width: naturalWidth, height: naturalHeight });
+      }
+    }
+  };
+
+  const imgStyle = cachedSize
+    ? `width: ${Math.min(cachedSize.width, 400)}px; aspect-ratio: ${cachedSize.width} / ${cachedSize.height};`
+    : "";
 
   return (
     <div className="embed-container tenor-embed">
       <div className="chat-image-wrapper">
         <img
+          ref={imgRef}
           src={cachedSrc || proxyImageUrl(gifUrl)}
           alt="Tenor GIF"
           className="tenor-gif message-image"
           data-image-url={gifUrl}
           loading="lazy"
+          style={imgStyle}
+          onLoad={handleImageLoad}
         />
       </div>
     </div>

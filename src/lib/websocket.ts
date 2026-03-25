@@ -68,7 +68,7 @@ import { readTimes as dbReadTimes } from "./db";
 // ── Reconnect config ──────────────────────────────────────────────────────────
 const RECONNECT_BASE_DELAY_MS = 2000;
 const RECONNECT_MAX_DELAY_MS = 30000;
-const RECONNECT_MAX_ATTEMPTS = 10;
+const RECONNECT_MAX_ATTEMPTS = 5;
 
 /** Debounce timers for persisting read times to IDB when the user is
  *  actively viewing a channel and new messages arrive. Keyed by
@@ -580,30 +580,32 @@ function serverLabel(sUrl: string): string {
 }
 
 function scheduleReconnect(sUrl: string): void {
-  // Only auto-reconnect the server the user is currently viewing.
-  // Background servers just show the disconnected icon; the user can
-  // switch to them to trigger a reconnect via switchServer().
-  if (serverUrl.value !== sUrl) return;
-
   if (reconnectTimeouts[sUrl]) {
     clearTimeout(reconnectTimeouts[sUrl]);
     delete reconnectTimeouts[sUrl];
   }
 
   const attempt = (reconnectAttempts[sUrl] || 0) + 1;
+  const isCurrentServer = serverUrl.value === sUrl;
+
   if (attempt > RECONNECT_MAX_ATTEMPTS) {
-    upsertBanner(reconnectBannerIds[sUrl] || `reconnect-${sUrl}`, {
-      kind: "error",
-      serverUrl: sUrl,
-      message: `Lost connection to ${serverLabel(sUrl)}. Click to reconnect manually.`,
-      action: {
-        label: "Reconnect",
-        fn: () => {
-          reconnectAttempts[sUrl] = 0;
-          connectToServer(sUrl, true);
+    if (isCurrentServer) {
+      upsertBanner(reconnectBannerIds[sUrl] || `reconnect-${sUrl}`, {
+        kind: "error",
+        serverUrl: sUrl,
+        message: `Lost connection to ${serverLabel(sUrl)}. Click to reconnect manually.`,
+        action: {
+          label: "Reconnect",
+          fn: () => {
+            reconnectAttempts[sUrl] = 0;
+            connectToServer(sUrl, true);
+          },
         },
-      },
-    });
+      });
+    } else {
+      wsStatus[sUrl] = "disconnected";
+      renderGuildSidebarSignal.value++;
+    }
     return;
   }
 
@@ -616,25 +618,28 @@ function scheduleReconnect(sUrl: string): void {
     ) / 2;
 
   const label = serverLabel(sUrl);
-  const bannerId = `reconnect-${sUrl}`;
-  reconnectBannerIds[sUrl] = bannerId;
 
-  upsertBanner(bannerId, {
-    kind: "warning",
-    serverUrl: sUrl,
-    message: `Connection to ${label} lost. Reconnecting in ${Math.round(delay / 1000)}s… (attempt ${attempt}/${RECONNECT_MAX_ATTEMPTS})`,
-    action: {
-      label: "Reconnect now",
-      fn: () => {
-        clearTimeout(reconnectTimeouts[sUrl]);
-        delete reconnectTimeouts[sUrl];
-        reconnectAttempts[sUrl] = 0;
-        dismissBanner(bannerId);
-        delete reconnectBannerIds[sUrl];
-        connectToServer(sUrl, true);
+  if (isCurrentServer) {
+    const bannerId = `reconnect-${sUrl}`;
+    reconnectBannerIds[sUrl] = bannerId;
+
+    upsertBanner(bannerId, {
+      kind: "warning",
+      serverUrl: sUrl,
+      message: `Connection to ${label} lost. Reconnecting in ${Math.round(delay / 1000)}s… (attempt ${attempt}/${RECONNECT_MAX_ATTEMPTS})`,
+      action: {
+        label: "Reconnect now",
+        fn: () => {
+          clearTimeout(reconnectTimeouts[sUrl]);
+          delete reconnectTimeouts[sUrl];
+          reconnectAttempts[sUrl] = 0;
+          dismissBanner(bannerId);
+          delete reconnectBannerIds[sUrl];
+          connectToServer(sUrl, true);
+        },
       },
-    },
-  });
+    });
+  }
 
   wsStatus[sUrl] = "connecting";
   renderGuildSidebarSignal.value++;
