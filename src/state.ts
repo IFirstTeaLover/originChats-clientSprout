@@ -412,6 +412,8 @@ export const myStatus = signal<MyStatus>({ status: "online" });
 
 export const autoIdleOnUnfocus = signal<boolean>(true);
 
+export const savedStatusText = signal<string | undefined>(undefined);
+
 // ─── Offline / Push notification settings ─────────────────────────────────────
 /**
  * True when the app shell has loaded but all network attempts (token
@@ -788,6 +790,11 @@ export async function initSettingsFromDb(): Promise<void> {
     "offlinePushSettings",
     {},
   );
+  autoIdleOnUnfocus.value = await bool("autoIdleOnUnfocus", true);
+  savedStatusText.value = await s.get<string | undefined>(
+    "savedStatusText",
+    undefined,
+  );
 
   _settingsLoaded = true;
 }
@@ -948,4 +955,18 @@ effect(() => {
 effect(() => {
   if (_settingsLoaded)
     dbSettings.set("offlinePushSettings", offlinePushServers.value);
+});
+effect(() => {
+  const v = autoIdleOnUnfocus.value;
+  if (_settingsLoaded) dbSettings.set("autoIdleOnUnfocus", String(v));
+});
+effect(() => {
+  const v = savedStatusText.value;
+  if (_settingsLoaded) {
+    if (v === undefined) {
+      dbSettings.del("savedStatusText");
+    } else {
+      dbSettings.set("savedStatusText", v);
+    }
+  }
 });

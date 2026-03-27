@@ -48,6 +48,7 @@ import {
   myStatus,
   customEmojisByServer,
   autoIdleOnUnfocus,
+  savedStatusText,
 } from "../state";
 import { statusState } from "./state";
 
@@ -840,6 +841,25 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
       };
       if (msg.user.status) {
         statusState.updateFromReady(sUrl, msg.user.username, msg.user.status);
+        myStatus.value = {
+          status: msg.user.status.status,
+          text: msg.user.status.text,
+        };
+        if (msg.user.status.text) {
+          savedStatusText.value = msg.user.status.text;
+        }
+      } else if (savedStatusText.value !== undefined) {
+        const caps = serverCapabilitiesByServer.value[sUrl] || [];
+        if (caps.includes("status_set")) {
+          wsSend(
+            {
+              cmd: "status_set",
+              status: myStatus.value.status,
+              text: savedStatusText.value,
+            },
+            sUrl,
+          );
+        }
       }
       renderMembersSignal.value++;
       break;
