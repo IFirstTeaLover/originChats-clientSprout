@@ -46,6 +46,7 @@ import {
   updateThreadInChannel,
   setThreadMessagesForServer,
   myStatus,
+  customEmojisByServer,
 } from "../state";
 import { statusState } from "./state";
 
@@ -850,6 +851,7 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
       wsSend({ cmd: "users_online" }, sUrl);
       if (serverHas("roles_list")) wsSend({ cmd: "roles_list" }, sUrl);
       if (serverHas("slash_list")) wsSend({ cmd: "slash_list" }, sUrl);
+      if (serverHas("emoji_get_all")) wsSend({ cmd: "emoji_get_all" }, sUrl);
       if (sUrl !== DM_SERVER_URL && serverHas("pings_get")) {
         let channelReadTimes = readTimesByServer.value[sUrl];
         if (!channelReadTimes || Object.keys(channelReadTimes).length === 0) {
@@ -861,10 +863,6 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
             };
           }
         }
-        const readValues = Object.values(channelReadTimes || {});
-        const since =
-          readValues.length > 0 ? Math.min(...(readValues as number[])) : 0;
-        wsSend({ cmd: "list_pings", since }, sUrl);
       }
       break;
     }
@@ -1952,7 +1950,6 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
       break;
     }
     case "slash_remove": {
-      // One or more commands were unregistered — remove them by name.
       const toRemove: string[] =
         msg.commands || (msg.command ? [msg.command] : []);
       if (toRemove.length === 0) break;
@@ -1961,6 +1958,67 @@ async function handleMessage(msg: any, sUrl: string): Promise<void> {
         ...slashCommandsByServer.value,
         [sUrl]: existing.filter((c) => !toRemove.includes(c.name)),
       };
+      break;
+    }
+
+    case "emoji_get_all": {
+      const emojis: Record<string, { name: string; fileName: string }> =
+        msg.emojis || {};
+      const mapped: Record<string, import("../types").CustomEmoji> = {};
+      for (const [id, e] of Object.entries(emojis)) {
+        mapped[id] = { id, name: e.name, fileName: e.fileName };
+      }
+      customEmojisByServer.value = {
+        ...customEmojisByServer.value,
+        [sUrl]: mapped,
+      };
+      break;
+    }
+    case "emoji_add": {
+      if (msg.added && msg.id !== undefined) {
+        const newEmoji: import("../types").CustomEmoji = {
+          id: String(msg.id),
+          name: msg.name,
+          fileName: msg.fileName || `${msg.id}`,
+        };
+        const current = customEmojisByServer.value[sUrl] || {};
+        customEmojisByServer.value = {
+          ...customEmojisByServer.value,
+          [sUrl]: { ...current, [newEmoji.id]: newEmoji },
+        };
+      }
+      break;
+    }
+    case "emoji_delete": {
+      if (msg.deleted) {
+        const current = customEmojisByServer.value[sUrl] || {};
+        const updated = { ...current };
+        delete updated[String(msg.id)];
+        customEmojisByServer.value = {
+          ...customEmojisByServer.value,
+          [sUrl]: updated,
+        };
+      }
+      break;
+    }
+    case "emoji_update": {
+      if (msg.updated && msg.id !== undefined) {
+        const current = customEmojisByServer.value[sUrl] || {};
+        const existing = current[String(msg.id)];
+        if (existing) {
+          customEmojisByServer.value = {
+            ...customEmojisByServer.value,
+            [sUrl]: {
+              ...current,
+              [String(msg.id)]: {
+                ...existing,
+                ...(msg.name ? { name: msg.name } : {}),
+                ...(msg.fileName ? { fileName: msg.fileName } : {}),
+              },
+            },
+          };
+        }
+      }
       break;
     }
 
@@ -2192,10 +2250,27 @@ export function refreshCurrentChannel(): void {
   const conn = wsConnections[sUrl];
   if (conn?.status !== "connected") return;
 
-  loadedChannelsByServer[sUrl]?.delete(channel.name);
-  reachedOldestByServer[sUrl]?.delete(channel.name);
-  startMessageFetch(sUrl, channel.name);
-  wsSend({ cmd: "messages_get", channel: channel.name, limit: 30 }, sUrl);
+  const threadId = currentThread.value?.id;
+
+  if (threadId) {
+    loadedChannelsByServer[sUrl]?.delete(threadId);
+    reachedOldestByServer[sUrl]?.delete(threadId);
+    startMessageFetch(sUrl, threadId);
+    wsSend(
+      {
+        cmd: "messages_get",
+        channel: channel.name,
+        thread_id: threadId,
+        limit: 30,
+      },
+      sUrl,
+    );
+  } else {
+    loadedChannelsByServer[sUrl]?.delete(channel.name);
+    reachedOldestByServer[sUrl]?.delete(channel.name);
+    startMessageFetch(sUrl, channel.name);
+    wsSend({ cmd: "messages_get", channel: channel.name, limit: 30 }, sUrl);
+  }
 }
 
 let visibilityHandlerAdded = false;

@@ -12,6 +12,7 @@ import type {
   RoturGroup,
   RoturStatusUpdate,
   Thread,
+  CustomEmoji,
 } from "./types";
 import { settings as dbSettings } from "./lib/db";
 export { unreadState, messageState } from "./lib/state";
@@ -353,6 +354,34 @@ export const DEFAULT_SERVERS: Server[] = [
 ];
 
 export const recentEmojis = signal<string[]>([]);
+
+export const customEmojisByServer = signal<
+  Record<string, Record<string, CustomEmoji>>
+>({});
+
+export function getCustomEmojiByName(
+  name: string,
+): { emoji: CustomEmoji; serverUrl: string } | null {
+  const lowerName = name.toLowerCase();
+  for (const [sUrl, emojis] of Object.entries(customEmojisByServer.value)) {
+    for (const [id, emoji] of Object.entries(emojis)) {
+      if (emoji.name.toLowerCase() === lowerName) {
+        return { emoji, serverUrl: sUrl };
+      }
+    }
+  }
+  return null;
+}
+
+export function getCustomEmojiUrl(
+  serverUrlStr: string,
+  emoji: CustomEmoji,
+): string {
+  const baseUrl = serverUrlStr.startsWith("http")
+    ? serverUrlStr
+    : `https://${serverUrlStr}`;
+  return `${baseUrl}/emojis/${emoji.fileName}`;
+}
 
 // ── Rotur social state ────────────────────────────────────────────────────────
 

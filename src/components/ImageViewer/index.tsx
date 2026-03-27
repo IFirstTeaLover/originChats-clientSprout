@@ -12,7 +12,10 @@ export interface ImageViewerProps {
   isOpen: boolean;
   imageUrl: string;
   expiresAt?: number | null;
+  images?: Array<{ url: string; expiresAt?: number | null }>;
+  currentIndex?: number;
   onClose: () => void;
+  onNavigate?: (index: number) => void;
 }
 
 function formatExpiry(expiresAt: number): string {
@@ -34,7 +37,10 @@ export function ImageViewer({
   isOpen,
   imageUrl,
   expiresAt,
+  images,
+  currentIndex,
   onClose,
+  onNavigate,
 }: ImageViewerProps) {
   const [isFavorite, setIsFavorite] = useState(false);
   const [error, setError] = useState(false);
@@ -52,10 +58,17 @@ export function ImageViewer({
     if (!isOpen) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
+      if (images && currentIndex !== undefined) {
+        if (e.key === "ArrowLeft" && currentIndex > 0) {
+          onNavigate?.(currentIndex - 1);
+        } else if (e.key === "ArrowRight" && currentIndex < images.length - 1) {
+          onNavigate?.(currentIndex + 1);
+        }
+      }
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, images, currentIndex, onNavigate]);
 
   useEffect(() => {
     if (isOpen) {

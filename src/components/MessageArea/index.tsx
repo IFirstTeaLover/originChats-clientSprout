@@ -35,6 +35,7 @@ import {
   threadsByServer,
   attachmentConfigByServer,
   rolesByServer,
+  customEmojisByServer,
 } from "../../state";
 
 import {
@@ -66,6 +67,20 @@ import {
   selectThread,
 } from "../../lib/actions";
 import { getShortcodeMap, loadShortcodes } from "../../lib/shortcodes";
+
+function transformCustomEmojisToUrls(text: string): string {
+  return text.replace(/:[\w][\w-]*:/g, (match) => {
+    const name = match.slice(1, -1);
+    for (const [sUrl, emojis] of Object.entries(customEmojisByServer.value)) {
+      for (const emoji of Object.values(emojis)) {
+        if (emoji.name === name) {
+          return `originChats:<emoji>//${sUrl}/${emoji.id}`;
+        }
+      }
+    }
+    return match;
+  });
+}
 import { Icon } from "../Icon";
 import { MembersList } from "../MembersList";
 import { UserContextMenu, useUserContextMenu } from "../UserContextMenu";
@@ -258,7 +273,7 @@ async function sendMessage() {
   const msg: any = {
     cmd: "message_new",
     content: convertChannelMentionsToLinks(
-      replaceShortcodes(finalContent),
+      replaceShortcodes(transformCustomEmojisToUrls(finalContent)),
       serverUrl.value,
       new Set(
         channels.value.filter((c) => c.name).map((c) => c.name.toLowerCase()),
@@ -1490,7 +1505,11 @@ export function MessageArea() {
     });
   };
 
-  const handleEmojiSelect = (emoji: string) => {
+  const handleEmojiSelect = (
+    emoji: string,
+    isCustom?: boolean,
+    emojiData?: { name: string; serverUrl: string },
+  ) => {
     if (reactingToMessage) {
       wsSend(
         {
@@ -1512,13 +1531,16 @@ export function MessageArea() {
       const cursorStart = input.selectionStart;
       const cursorEnd = input.selectionEnd;
       const value = input.value;
+      const insertText = emoji;
       const newValue =
-        value.substring(0, cursorStart) + emoji + value.substring(cursorEnd);
+        value.substring(0, cursorStart) +
+        insertText +
+        value.substring(cursorEnd);
       input.value = newValue;
       input.focus();
       input.setSelectionRange(
-        cursorStart + emoji.length,
-        cursorStart + emoji.length,
+        cursorStart + insertText.length,
+        cursorStart + insertText.length,
       );
     }
   };
@@ -2723,7 +2745,20 @@ export function MessageArea() {
           isOpen={!!imageViewerState.value}
           imageUrl={imageViewerState.value.url}
           expiresAt={imageViewerState.value.expiresAt}
+          images={imageViewerState.value.images}
+          currentIndex={imageViewerState.value.currentIndex}
           onClose={() => (imageViewerState.value = null)}
+          onNavigate={(index) => {
+            if (imageViewerState.value?.images?.[index]) {
+              const newImage = imageViewerState.value.images[index];
+              imageViewerState.value = {
+                ...imageViewerState.value,
+                url: newImage.url,
+                expiresAt: newImage.expiresAt,
+                currentIndex: index,
+              };
+            }
+          }}
         />
       )}
       <UnifiedPicker

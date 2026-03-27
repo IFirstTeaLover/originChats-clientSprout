@@ -1,5 +1,5 @@
 import hljs from "highlight.js/lib/core";
-import { servers, threadsByServer } from "../state";
+import { servers, threadsByServer, customEmojisByServer } from "../state";
 import javascript from "highlight.js/lib/languages/javascript";
 import typescript from "highlight.js/lib/languages/typescript";
 import python from "highlight.js/lib/languages/python";
@@ -113,6 +113,21 @@ export function replaceShortcodes(text: string): string {
       return shortcodeMap[trimmed] || match;
     });
   }
+
+  text = text.replace(/:[\w][\w-]*:/g, (match) => {
+    const name = match.slice(1, -1);
+    for (const [sUrl, emojis] of Object.entries(customEmojisByServer.value)) {
+      for (const emoji of Object.values(emojis)) {
+        if (emoji.name === name) {
+          const baseUrl = sUrl.startsWith("http") ? sUrl : `https://${sUrl}`;
+          const url = `${baseUrl}/emojis/${emoji.fileName}`;
+          return `<img class="custom-emoji" src="${url}" alt=":${emoji.name}:" title="${emoji.name}" loading="lazy" />`;
+        }
+      }
+    }
+    return match;
+  });
+
   return text;
 }
 
@@ -167,6 +182,20 @@ export function parseMarkdown(
     embedLinks.push(...cached.embedLinks);
     return cached.result;
   }
+
+  const customEmojiPlaceholders: Array<{
+    placeholder: string;
+    sUrl: string;
+    emojiId: string;
+  }> = [];
+  text = text.replace(
+    /originChats:<emoji>\/\/([^/\s]+)\/([^\s]+)/g,
+    (match, sUrl, emojiId) => {
+      const placeholder = `§CUSTOMEMOJI_${customEmojiPlaceholders.length}§${Math.random().toString(36).substring(2, 8)}§`;
+      customEmojiPlaceholders.push({ placeholder, sUrl, emojiId });
+      return placeholder;
+    },
+  );
 
   const codeBlocks: Array<{ placeholder: string; lang: string; code: string }> =
     [];
@@ -233,6 +262,32 @@ export function parseMarkdown(
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+
+  // Restore custom emoji placeholders as actual <img> tags
+  for (const { placeholder, sUrl, emojiId } of customEmojiPlaceholders) {
+    const emojis = customEmojisByServer.value[sUrl];
+    if (!emojis) {
+      text = text.replace(
+        placeholder,
+        `originChats:&lt;emoji&gt;//${sUrl}/${emojiId}`,
+      );
+      continue;
+    }
+    const emoji = emojis[emojiId];
+    if (!emoji) {
+      text = text.replace(
+        placeholder,
+        `originChats:&lt;emoji&gt;//${sUrl}/${emojiId}`,
+      );
+      continue;
+    }
+    const baseUrl = sUrl.startsWith("http") ? sUrl : `https://${sUrl}`;
+    const url = `${baseUrl}/emojis/${emoji.fileName}`;
+    text = text.replace(
+      placeholder,
+      `<img class="custom-emoji" src="${url}" alt=":${emoji.name}:" title="${emoji.name}" loading="lazy" />`,
+    );
+  }
 
   text = text.replace(/^#{6} (.*)$/gm, (_, content) => `<h6>${content}</h6>`);
   text = text.replace(/^#{5} (.*)$/gm, (_, content) => `<h5>${content}</h5>`);

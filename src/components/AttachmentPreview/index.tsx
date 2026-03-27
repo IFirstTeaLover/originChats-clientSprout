@@ -18,8 +18,18 @@ interface AttachmentPreviewProps {
   onContextMenu?: (e: MouseEvent, att: Attachment) => void;
 }
 
-function openImage(url: string, expiresAt?: number | null) {
-  imageViewerState.value = { url, expiresAt };
+function openImage(
+  url: string,
+  expiresAt?: number | null,
+  images?: Array<{ url: string; expiresAt?: number | null }>,
+) {
+  const currentIndex = images?.findIndex((img) => img.url === url) ?? -1;
+  imageViewerState.value = {
+    url,
+    expiresAt,
+    images,
+    currentIndex: currentIndex >= 0 ? currentIndex : undefined,
+  };
 }
 
 function formatFileSize(bytes: number): string {
@@ -256,7 +266,11 @@ export function AttachmentPreview({
   };
 
   const handleImageClick = (att: Attachment) => {
-    openImage(att.url, att.expires_at);
+    openImage(
+      att.url,
+      att.expires_at,
+      imageData.length > 1 ? imageData : undefined,
+    );
   };
 
   const handleContextMenu = (e: MouseEvent, att: Attachment) => {
@@ -268,6 +282,10 @@ export function AttachmentPreview({
   };
 
   const images = attachments.filter((a) => a.mime_type.startsWith("image/"));
+  const imageData = images.map((a) => ({
+    url: a.url,
+    expiresAt: a.expires_at,
+  }));
   const videos = attachments.filter((a) => a.mime_type.startsWith("video/"));
   const others = attachments.filter(
     (a) =>

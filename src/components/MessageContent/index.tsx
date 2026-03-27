@@ -63,10 +63,30 @@ interface MessageContentProps {
 const SINGLE_EMOJI_RE =
   /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*[\u{1F3FB}-\u{1F3FF}]?$/u;
 
-function isSingleEmoji(text: string): boolean {
+const CUSTOM_EMOJI_RE = /^originChats:<emoji>\/\/[^\/\s]+\/[^\s]+$/;
+
+function isEmojiOnlyMessage(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
-  return SINGLE_EMOJI_RE.test(trimmed);
+
+  console.log(text, trimmed);
+
+  if (SINGLE_EMOJI_RE.test(trimmed)) return true;
+  if (CUSTOM_EMOJI_RE.test(trimmed)) return true;
+
+  const withoutCustomEmojis = trimmed.replace(
+    /originChats:<emoji>\/\/[^\/\s]+\/[^\s]+/g,
+    "",
+  );
+
+  const remaining = withoutCustomEmojis.replace(
+    /[\p{Emoji_Presentation}\p{Emoji}\uFE0F\u200D\u{1F3FB}-\u{1F3FF}\s]/gu,
+    "",
+  );
+
+  console.log(trimmed, remaining)
+
+  return remaining.length === 0;
 }
 
 function MessageContentInner({
@@ -150,7 +170,7 @@ function MessageContentInner({
       html: DOMPurify.sanitize(parsed, { ADD_ATTR: ["target"] }),
       embedLinks: links,
       isMentioned: mentioned,
-      isEmojiOnly: isSingleEmoji(content),
+      isEmojiOnly: isEmojiOnlyMessage(content),
     };
   }, [content, currentUsername, authorUsername]);
 

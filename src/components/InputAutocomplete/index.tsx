@@ -6,6 +6,8 @@ import {
   rolesByServer,
   serverUrl,
   currentChannel,
+  servers,
+  customEmojisByServer,
 } from "../../state";
 import { avatarUrl } from "../../utils";
 import { emojiImgUrl } from "../../lib/emoji";
@@ -20,6 +22,10 @@ interface AutocompleteItem {
   hexcode?: string;
   description?: string;
   registeredBy?: string;
+  serverUrl?: string;
+  serverName?: string;
+  fileName?: string;
+  isCustomEmoji?: boolean;
 }
 
 interface AutocompleteState {
@@ -220,6 +226,51 @@ function searchEmojis(query: string): AutocompleteItem[] {
   return [...exact, ...rest].slice(0, 10);
 }
 
+function searchCustomEmojis(query: string): AutocompleteItem[] {
+  const q = query.toLowerCase();
+  const results: AutocompleteItem[] = [];
+
+  const currentServer = serverUrl.value;
+  const currentServerEmojis = customEmojisByServer.value[currentServer] || {};
+  for (const emoji of Object.values(currentServerEmojis)) {
+    if (emoji.name.toLowerCase().includes(q)) {
+      const server = servers.value.find((s) => s.url === currentServer);
+      results.push({
+        type: "emoji",
+        label: emoji.name,
+        insertText: `:${emoji.name}:`,
+        serverUrl: currentServer,
+        serverName: server?.name || currentServer,
+        fileName: emoji.fileName,
+        isCustomEmoji: true,
+      });
+    }
+    if (results.length >= 5) break;
+  }
+
+  for (const [sUrl, emojis] of Object.entries(customEmojisByServer.value)) {
+    if (sUrl === currentServer) continue;
+    for (const emoji of Object.values(emojis)) {
+      if (emoji.name.toLowerCase().includes(q)) {
+        const server = servers.value.find((s) => s.url === sUrl);
+        results.push({
+          type: "emoji",
+          label: emoji.name,
+          insertText: `:${emoji.name}:`,
+          serverUrl: sUrl,
+          serverName: server?.name || sUrl,
+          fileName: emoji.fileName,
+          isCustomEmoji: true,
+        });
+      }
+      if (results.length >= 10) break;
+    }
+    if (results.length >= 10) break;
+  }
+
+  return results;
+}
+
 function searchSlashCommands(query: string): AutocompleteItem[] {
   const cmdList = slashCommands.value;
   const q = query.toLowerCase();
@@ -276,7 +327,10 @@ export function useInputAutocomplete(inputId: string) {
         items = searchRoles(trigger.query);
         break;
       case "emoji":
-        items = searchEmojis(trigger.query);
+        items = [
+          ...searchCustomEmojis(trigger.query),
+          ...searchEmojis(trigger.query),
+        ];
         break;
       case "slash":
         items = searchSlashCommands(trigger.query);
@@ -448,6 +502,7 @@ export function InputAutocomplete({
               )}
               {item.type === "emoji" &&
                 item.hexcode &&
+                !item.isCustomEmoji &&
                 (() => {
                   const url = emojiImgUrl(item.hexcode);
                   return url ? (
@@ -463,10 +518,26 @@ export function InputAutocomplete({
                     </span>
                   );
                 })()}
+              {item.type === "emoji" &&
+                item.isCustomEmoji &&
+                item.serverUrl &&
+                item.fileName && (
+                  <img
+                    src={`https://${item.serverUrl}/emojis/${item.fileName}`}
+                    alt={`:${item.label}:`}
+                    className="autocomplete-emoji-icon custom-emoji-autocomplete"
+                    draggable={false}
+                  />
+                )}
               {item.type === "channel" && (
                 <span className="autocomplete-icon-hash">#</span>
               )}
               <span className="autocomplete-label">{item.label}</span>
+              {item.isCustomEmoji && item.serverName && (
+                <span className="autocomplete-emoji-server">
+                  {item.serverName}
+                </span>
+              )}
             </div>
           ))}
         </div>

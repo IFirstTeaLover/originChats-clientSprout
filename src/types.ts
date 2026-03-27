@@ -317,6 +317,12 @@ export interface RoturStatusUpdate {
   expires?: number;
 }
 
+export interface CustomEmoji {
+  id: string;
+  name: string;
+  fileName: string;
+}
+
 export interface RoturEconomyStats {
   total_credits?: number;
   total_users?: number;

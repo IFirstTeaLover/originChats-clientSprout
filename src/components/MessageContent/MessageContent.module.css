@@ -70,6 +70,13 @@
   vertical-align: middle;
 }
 
+.emojiOnly :global(img.custom-emoji) {
+  height: 48px;
+  width: auto;
+  max-width: 60px;
+  vertical-align: middle;
+}
+
 .messageText a {
   color: var(--link, #00a8fc);
   text-decoration: none;

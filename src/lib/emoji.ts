@@ -107,3 +107,25 @@ export function emojiImgUrl(value: string, isChar = false): string | null {
 
   return `${TWEMOJI_CDN_BASE}/${hexcode}.svg`;
 }
+
+export function getEmojiImgOrDataUri(emoji: string): string | null {
+  if (useSystemEmojis.value) return null;
+
+  const hexcode = twemoji.convert.toCodePoint(emoji);
+  if (!hexcode.includes("200d")) {
+    const cleaned = hexcode.replace(/-?fe0f/gi, "");
+    ensureCached(cleaned);
+    return dataUriCache.get(cleaned) || `${TWEMOJI_CDN_BASE}/${cleaned}.svg`;
+  }
+
+  ensureCached(hexcode);
+  return dataUriCache.get(hexcode) || `${TWEMOJI_CDN_BASE}/${hexcode}.svg`;
+}
+
+export function getCachedEmojiDataUri(hexcode: string): string | null {
+  return dataUriCache.get(hexcode) || null;
+}
+
+export function useEmojiImg(emoji: string): string | null {
+  return getEmojiImgOrDataUri(emoji);
+}

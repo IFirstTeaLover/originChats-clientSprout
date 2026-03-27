@@ -172,6 +172,8 @@ export const showNotificationPrompt = signal(false);
 export interface ImageViewerState {
   url: string;
   expiresAt?: number | null;
+  images?: Array<{ url: string; expiresAt?: number | null }>;
+  currentIndex?: number;
 }
 export const imageViewerState = signal<ImageViewerState | null>(null);
 

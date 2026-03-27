@@ -6,6 +6,8 @@ import {
   channels,
   rolesByServer,
   currentUser,
+  servers,
+  customEmojisByServer,
 } from "../../state";
 import {
   showServerSettingsModal,
@@ -17,10 +19,16 @@ import {
 } from "../../lib/ui-signals";
 import { wsSend } from "../../lib/websocket";
 import { Icon } from "../Icon";
-import type { Role, Channel, ServerUser } from "../../types";
+import type { Role, Channel, ServerUser, CustomEmoji } from "../../types";
 import { avatarUrl } from "../../utils";
 
-type Section = "overview" | "channels" | "roles" | "members" | "bans";
+type Section =
+  | "overview"
+  | "channels"
+  | "roles"
+  | "members"
+  | "bans"
+  | "emojis";
 
 interface UserDetailModal {
   username: string;
@@ -269,11 +277,28 @@ export function ServerSettingsModal() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [draggedRole, setDraggedRole] = useState<string | null>(null);
   const [dragOverRole, setDragOverRole] = useState<string | null>(null);
+  const [serverEmojis, setServerEmojis] = useState<CustomEmoji[]>([]);
+  const [emojiModalOpen, setEmojiModalOpen] = useState(false);
+  const [emojiName, setEmojiName] = useState("");
+  const [emojiFile, setEmojiFile] = useState<File | null>(null);
+  const [emojiPreview, setEmojiPreview] = useState<string | null>(null);
+  const [emojiEditModal, setEmojiEditModal] = useState<CustomEmoji | null>(
+    null,
+  );
 
   useEffect(() => {
     wsSend({ cmd: "roles_list" }, serverUrl.value);
     wsSend({ cmd: "users_banned_list" }, serverUrl.value);
   }, []);
+
+  useEffect(() => {
+    const emojis = customEmojisByServer.value[serverUrl.value];
+    if (emojis) {
+      setServerEmojis(Object.values(emojis));
+    } else {
+      setServerEmojis([]);
+    }
+  }, [customEmojisByServer.value]);
 
   useEffect(() => {
     const roles = rolesByServer.value[serverUrl.value];
@@ -481,6 +506,91 @@ export function ServerSettingsModal() {
     setDragOverRole(null);
   };
 
+  const openAddEmoji = () => {
+    setEmojiName("");
+    setEmojiFile(null);
+    setEmojiPreview(null);
+    setEmojiModalOpen(true);
+  };
+
+  const handleEmojiFileChange = (e: Event) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) {
+      const allowedTypes = [
+        "image/gif",
+        "image/jpeg",
+        "image/jpg",
+        "image/svg+xml",
+      ];
+      if (!allowedTypes.includes(file.type)) {
+        showError("Invalid file type. Allowed: GIF, JPG, JPEG, SVG");
+        return;
+      }
+      setEmojiFile(file);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setEmojiPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAddEmoji = () => {
+    if (!emojiName.trim()) {
+      showError("Emoji name is required");
+      return;
+    }
+    if (!emojiFile || !emojiPreview) {
+      showError("Please select an image file");
+      return;
+    }
+    wsSend(
+      {
+        cmd: "emoji_add",
+        name: emojiName.trim(),
+        image: emojiPreview,
+      },
+      serverUrl.value,
+    );
+    setEmojiModalOpen(false);
+    showInfo(`Emoji "${emojiName}" added`);
+  };
+
+  const handleDeleteEmoji = (emoji: CustomEmoji) => {
+    if (confirm(`Delete emoji "${emoji.name}"?`)) {
+      wsSend(
+        { cmd: "emoji_delete", emoji_id: parseInt(emoji.id, 10) },
+        serverUrl.value,
+      );
+      showInfo(`Emoji "${emoji.name}" deleted`);
+    }
+  };
+
+  const handleUpdateEmojiName = (emoji: CustomEmoji, newName: string) => {
+    if (!newName.trim()) {
+      showError("Emoji name is required");
+      return;
+    }
+    wsSend(
+      {
+        cmd: "emoji_update",
+        emoji_id: parseInt(emoji.id, 10),
+        name: newName.trim(),
+      },
+      serverUrl.value,
+    );
+    setEmojiEditModal(null);
+    showInfo(`Emoji renamed to "${newName}"`);
+  };
+
+  const getEmojiUrl = (emoji: CustomEmoji): string => {
+    const baseUrl = serverUrl.value.startsWith("http")
+      ? serverUrl.value
+      : `https://${serverUrl.value}`;
+    return `${baseUrl}/emojis/${emoji.fileName}`;
+  };
+
   return (
     <div
       className="server-settings-overlay"
@@ -507,7 +617,14 @@ export function ServerSettingsModal() {
           </div>
           <nav className="server-settings-nav">
             {(
-              ["overview", "channels", "roles", "members", "bans"] as Section[]
+              [
+                "overview",
+                "channels",
+                "roles",
+                "members",
+                "bans",
+                "emojis",
+              ] as Section[]
             ).map((s) => (
               <button
                 key={s}
@@ -524,7 +641,9 @@ export function ServerSettingsModal() {
                           ? "Shield"
                           : s === "members"
                             ? "Users"
-                            : "Ban"
+                            : s === "emojis"
+                              ? "Smile"
+                              : "Ban"
                   }
                   size={16}
                 />
@@ -824,6 +943,57 @@ export function ServerSettingsModal() {
                         >
                           <Icon name="UserCheck" size={14} />
                         </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {section === "emojis" && (
+            <div className="server-section-body">
+              {isOwner && (
+                <div className="settings-section-actions">
+                  <button
+                    className="settings-action-btn"
+                    onClick={openAddEmoji}
+                  >
+                    <Icon name="Plus" size={16} /> Add Emoji
+                  </button>
+                </div>
+              )}
+              {serverEmojis.length === 0 ? (
+                <div className="settings-empty">No custom emojis</div>
+              ) : (
+                <div className="emoji-grid">
+                  {serverEmojis.map((emoji) => (
+                    <div key={emoji.id} className="emoji-grid-item">
+                      <img
+                        src={getEmojiUrl(emoji)}
+                        alt={emoji.name}
+                        className="emoji-preview-img"
+                      />
+                      <div className="emoji-item-info">
+                        <span className="emoji-item-name">:{emoji.name}:</span>
+                      </div>
+                      {isOwner && (
+                        <div className="emoji-item-actions">
+                          <button
+                            className="settings-icon-btn"
+                            onClick={() => setEmojiEditModal(emoji)}
+                            title="Edit"
+                          >
+                            <Icon name="Edit3" size={14} />
+                          </button>
+                          <button
+                            className="settings-icon-btn danger"
+                            onClick={() => handleDeleteEmoji(emoji)}
+                            title="Delete"
+                          >
+                            <Icon name="Trash2" size={14} />
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -1257,6 +1427,121 @@ export function ServerSettingsModal() {
                   onClick={() => handleDeleteUser(confirmDelete)}
                 >
                   Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {emojiModalOpen && (
+          <div
+            className="settings-inner-modal"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setEmojiModalOpen(false);
+            }}
+          >
+            <div className="settings-inner-dialog">
+              <h3>Add Emoji</h3>
+              <div className="settings-field">
+                <label>Emoji Name</label>
+                <input
+                  type="text"
+                  value={emojiName}
+                  onInput={(e) =>
+                    setEmojiName((e.target as HTMLInputElement).value)
+                  }
+                  placeholder="emoji_name"
+                />
+              </div>
+              <div className="settings-field">
+                <label>Image (GIF, JPG, JPEG, SVG)</label>
+                <input
+                  type="file"
+                  accept=".gif,.jpg,.jpeg,.svg,image/gif,image/jpeg,image/svg+xml"
+                  onChange={handleEmojiFileChange}
+                />
+              </div>
+              {emojiPreview && (
+                <div className="emoji-preview-container">
+                  <img
+                    src={emojiPreview}
+                    alt="Preview"
+                    className="emoji-preview-img"
+                  />
+                  <span className="emoji-preview-label">
+                    :{emojiName || "name"}:
+                  </span>
+                </div>
+              )}
+              <div className="settings-dialog-actions">
+                <button
+                  className="settings-btn-cancel"
+                  onClick={() => setEmojiModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="settings-btn-confirm"
+                  onClick={handleAddEmoji}
+                  disabled={!emojiName.trim() || !emojiFile}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {emojiEditModal && (
+          <div
+            className="settings-inner-modal"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setEmojiEditModal(null);
+            }}
+          >
+            <div className="settings-inner-dialog">
+              <h3>Edit Emoji</h3>
+              <div className="settings-field">
+                <label>Current Emoji</label>
+                <div className="emoji-preview-container">
+                  <img
+                    src={getEmojiUrl(emojiEditModal)}
+                    alt={emojiEditModal.name}
+                    className="emoji-preview-img"
+                  />
+                  <span className="emoji-preview-label">
+                    :{emojiEditModal.name}:
+                  </span>
+                </div>
+              </div>
+              <div className="settings-field">
+                <label>New Name</label>
+                <input
+                  type="text"
+                  defaultValue={emojiEditModal.name}
+                  id="emoji-edit-name-input"
+                  placeholder="emoji_name"
+                />
+              </div>
+              <div className="settings-dialog-actions">
+                <button
+                  className="settings-btn-cancel"
+                  onClick={() => setEmojiEditModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="settings-btn-confirm"
+                  onClick={() => {
+                    const input = document.getElementById(
+                      "emoji-edit-name-input",
+                    ) as HTMLInputElement;
+                    if (input) {
+                      handleUpdateEmojiName(emojiEditModal, input.value);
+                    }
+                  }}
+                >
+                  Save
                 </button>
               </div>
             </div>
