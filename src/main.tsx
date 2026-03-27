@@ -1,9 +1,11 @@
 import { render, h } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
+import { registerSW } from "virtual:pwa-register";
 import "./style.css";
 import "./settings.css";
 import "./components/Modals/ChannelEditModal/ChannelEditModal.css";
+import "./components/UpdatePopup/style.css";
 
 import {
   token,
@@ -100,6 +102,13 @@ import { LoadingScreen } from "./components/LoadingScreen";
 import { ThreadPanel, ThreadView } from "./components/ThreadPanel";
 import { MembersList } from "./components/MembersList";
 import { useFavicon } from "./lib/useFavicon";
+import { UpdatePopup, updateAvailable } from "./components/UpdatePopup";
+
+registerSW({
+  onNeedRefresh() {
+    updateAvailable.value = true;
+  },
+});
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -406,6 +415,7 @@ function App() {
       <NotificationPromptModal />
       <UserPopout />
       <GlobalContextMenu />
+      <UpdatePopup />
     </div>
   );
 }
