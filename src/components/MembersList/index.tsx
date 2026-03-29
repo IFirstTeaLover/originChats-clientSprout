@@ -81,7 +81,7 @@ function MembersListInner() {
       color: role.color || null,
       position: role.position ?? i,
     }))
-    .sort((a, b) => b.position - a.position);
+    .sort((a, b) => a.position - b.position);
 
   const showStatus = hasCapability("status_get");
 
