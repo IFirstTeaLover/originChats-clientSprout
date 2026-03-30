@@ -120,18 +120,20 @@ export function EmojiPicker({
   useEffect(() => {
     if (isOpen && !initRef.current) {
       initRef.current = true;
-      emojiCache.initialize().then(() => {
-        setCategories(emojiCache.getCategories());
-        setCustomSections(
-          Array.from(emojiCache.getCustomEmojisByServer().entries()).map(
-            ([sUrl, items]) => ({
-              id: `custom-${sUrl}`,
-              label: items[0]?.serverName || sUrl,
-              items,
-            }),
-          ),
-        );
-        setInitialized(true);
+      requestIdleCallback(() => {
+        emojiCache.initialize().then(() => {
+          setCategories(emojiCache.getCategories());
+          setCustomSections(
+            Array.from(emojiCache.getCustomEmojisByServer().entries()).map(
+              ([sUrl, items]) => ({
+                id: `custom-${sUrl}`,
+                label: items[0]?.serverName || sUrl,
+                items,
+              }),
+            ),
+          );
+          setInitialized(true);
+        });
       });
     }
   }, [isOpen]);
@@ -335,6 +337,16 @@ export function EmojiPicker({
 
   if (!isOpen) return null;
 
+  if (!initialized) {
+    return (
+      <div ref={pickerRef} className={`emoji-picker emoji-picker-${mode}`}>
+        <div className="emoji-picker-loading">
+          <div className="emoji-loading-spinner" />
+        </div>
+      </div>
+    );
+  }
+
   const isSearchMode = searchTerm.trim().length > 0;
 
   return (
@@ -401,7 +413,7 @@ interface EmojiListViewProps {
   onCustomEmojiClick: (emoji: CustomEmojiItem) => void;
 }
 
-function EmojiListView({
+const EmojiListView = memo(function EmojiListView({
   sections,
   activeSection,
   onEmojiClick,
@@ -429,39 +441,59 @@ function EmojiListView({
           className="emoji-section"
         >
           <div className="emoji-section-header">{section.label}</div>
-          <div className="emoji-grid">
-            {section.items.map((item, index) => {
-              if ("hexcode" in item) {
-                const entry = item as EmojiEntry;
-                return (
-                  <EmojiButton
-                    key={`${entry.hexcode}-${index}`}
-                    emoji={entry.emoji}
-                    label={entry.label}
-                    hexcode={entry.hexcode}
-                    onClick={() => onEmojiClick(entry.emoji)}
-                  />
-                );
-              }
-              const custom = item as CustomEmojiItem;
-              return (
-                <CustomEmojiButton
-                  key={`${custom.id}-${index}`}
-                  id={custom.id}
-                  name={custom.name}
-                  fileName={custom.fileName}
-                  serverUrl={custom.serverUrl}
-                  serverName={custom.serverName}
-                  onClick={() => onCustomEmojiClick(custom)}
-                />
-              );
-            })}
-          </div>
+          <EmojiGrid
+            items={section.items}
+            onEmojiClick={onEmojiClick}
+            onCustomEmojiClick={onCustomEmojiClick}
+          />
         </div>
       ))}
     </div>
   );
+});
+
+interface EmojiGridProps {
+  items: EmojiEntry[] | CustomEmojiItem[];
+  onEmojiClick: (emoji: string) => void;
+  onCustomEmojiClick: (emoji: CustomEmojiItem) => void;
 }
+
+const EmojiGrid = memo(function EmojiGrid({
+  items,
+  onEmojiClick,
+  onCustomEmojiClick,
+}: EmojiGridProps) {
+  return (
+    <div className="emoji-grid">
+      {items.map((item) => {
+        if ("hexcode" in item) {
+          const entry = item as EmojiEntry;
+          return (
+            <EmojiButton
+              key={entry.hexcode}
+              emoji={entry.emoji}
+              label={entry.label}
+              hexcode={entry.hexcode}
+              onClick={() => onEmojiClick(entry.emoji)}
+            />
+          );
+        }
+        const custom = item as CustomEmojiItem;
+        return (
+          <CustomEmojiButton
+            key={custom.id}
+            id={custom.id}
+            name={custom.name}
+            fileName={custom.fileName}
+            serverUrl={custom.serverUrl}
+            serverName={custom.serverName}
+            onClick={() => onCustomEmojiClick(custom)}
+          />
+        );
+      })}
+    </div>
+  );
+});
 
 interface SearchResultsViewProps {
   results: EmojiEntry[];
@@ -494,9 +526,9 @@ const SearchResultsView = memo(function SearchResultsView({
         <div className="emoji-section">
           <div className="emoji-section-header">Server Emojis</div>
           <div className="emoji-grid">
-            {customResults.map((emoji, i) => (
+            {customResults.slice(0, 50).map((emoji) => (
               <CustomEmojiButton
-                key={`${emoji.id}-${i}`}
+                key={emoji.id}
                 id={emoji.id}
                 name={emoji.name}
                 fileName={emoji.fileName}
@@ -512,9 +544,9 @@ const SearchResultsView = memo(function SearchResultsView({
         <div className="emoji-section">
           <div className="emoji-section-header">Standard Emojis</div>
           <div className="emoji-grid">
-            {results.map((emoji, i) => (
+            {results.slice(0, 100).map((emoji) => (
               <EmojiButton
-                key={`${emoji.hexcode}-${i}`}
+                key={emoji.hexcode}
                 emoji={emoji.emoji}
                 label={emoji.label}
                 hexcode={emoji.hexcode}
