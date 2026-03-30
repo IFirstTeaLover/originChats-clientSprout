@@ -2709,7 +2709,6 @@ body.font-serif {
 }
 
 @media (max-width: 768px) {
-
   /* Full-screen modal */
   .server-settings-overlay {
     align-items: stretch;
@@ -3944,7 +3943,9 @@ img.tenor-gif {
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.1s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease;
   padding: 0;
 }
 
@@ -4268,7 +4269,7 @@ img.tenor-gif {
   margin-top: 4px;
 }
 
-.role-permissions-section>label {
+.role-permissions-section > label {
   display: block;
   font-size: 12px;
   font-weight: 600;
@@ -4355,25 +4356,6 @@ img.tenor-gif {
     padding: 5px 10px;
     font-size: 11px;
   }
-}
-
-.roles-list-container {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  max-height: 100%;
-}
-
-.role-editor-panel {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  max-height: 100%;
 }
 
 .role-editor-panel {
